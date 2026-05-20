@@ -16,6 +16,14 @@ dependencies = [
 [project.optional-dependencies]
 gpu = ["nvidia-ml-py>=12"]   # optional, for GPU memory/util measurement
 dev = ["pytest>=7", "ruff>=0.1"]
+demo = [
+    # Heavy deps used only by examples/. Install with: pip install -e ".[demo]"
+    "datasets>=2.16",
+    "scikit-learn>=1.3",
+    "torch>=2.1",
+    "transformers>=4.40",
+    "accelerate>=0.27",
+]
 
 [tool.setuptools.packages.find]
 include = ["ml_baker*"]

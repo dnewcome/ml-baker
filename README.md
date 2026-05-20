@@ -345,11 +345,23 @@ register(InstanceSpec(
 
 - [`examples/audit_demo.py`](examples/audit_demo.py) — audit-only run
   (milliseconds, no probe execution).
-- [`examples/probe_demo.py`](examples/probe_demo.py) — full pipeline:
-  spec → audit → 18 probes via subprocess → report. Uses a synthetic
-  trainable so it requires no ML libraries.
+- [`examples/probe_demo.py`](examples/probe_demo.py) — full pipeline with
+  a synthetic trainable: spec → audit → 18 probes via subprocess → report.
+  Requires no ML libraries.
 - [`examples/fake_trainable.py`](examples/fake_trainable.py) — a
-  reference implementation of the user-supplied callables.
+  reference implementation of the user-supplied callables (synthetic).
+- [`examples/agnews/`](examples/agnews) — **realistic demo on the AG News
+  text-classification dataset**. Two architectures (sklearn TF-IDF + LogReg
+  vs DistilBERT fine-tune) across multiple target instances, producing two
+  full reports with audits, scaling curves, and Pareto frontiers. Run with:
+
+  ```bash
+  pip install -e ".[demo]"
+  python examples/agnews/demo.py
+  ```
+
+  The sklearn variant runs in seconds on any CPU; DistilBERT runs in a
+  few minutes on a GPU machine and notably longer on CPU.
 
 ## Roadmap
 
