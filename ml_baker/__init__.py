@@ -34,7 +34,12 @@ from ml_baker.sweep import expand_sweeps
 from ml_baker.measure import Measurement, measure
 from ml_baker.probe import ProbeInput, ProbeResult, run_probe
 from ml_baker.runner import RunPlan, RunResults, plan_run, run
-from ml_baker.scaling import ScalingFit, fit_quality_scaling, fit_time_scaling
+from ml_baker.scaling import (
+    ScalingFit,
+    fit_memory_scaling,
+    fit_quality_scaling,
+    fit_time_scaling,
+)
 from ml_baker.report import GroupSummary, Report, build_report
 
 __all__ = [
@@ -72,6 +77,7 @@ __all__ = [
     "audit",
     "build_report",
     "expand_sweeps",
+    "fit_memory_scaling",
     "fit_quality_scaling",
     "fit_time_scaling",
     "known_instances",

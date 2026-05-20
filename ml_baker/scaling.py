@@ -43,6 +43,23 @@ def fit_quality_scaling(xs: list[float], ys: list[float]) -> ScalingFit | None:
     return _best_fit(xs, ys, models=("log", "power"))
 
 
+def fit_memory_scaling(xs: list[float], ys: list[float | None]) -> ScalingFit | None:
+    """Memory-vs-size: linear or log. Memory often barely grows with N
+    (model size + batch dominate VRAM; framework overhead dominates RAM at
+    small scales) so a small slope here is the right answer, not a bug.
+
+    ``ys`` may contain ``None`` (e.g. VRAM when no GPU/NVML is available);
+    those points are filtered before fitting. Returns ``None`` when fewer
+    than 2 valid points remain.
+    """
+    pairs = [(x, y) for x, y in zip(xs, ys) if y is not None]
+    if len(pairs) < 2:
+        return None
+    xs_f = [p[0] for p in pairs]
+    ys_f = [float(p[1]) for p in pairs]
+    return _best_fit(xs_f, ys_f, models=("linear", "log"))
+
+
 def _best_fit(xs: list[float], ys: list[float], models: tuple[str, ...]) -> ScalingFit | None:
     if len(xs) < 2 or len(xs) != len(ys):
         return None
