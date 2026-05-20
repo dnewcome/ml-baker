@@ -1,0 +1,21 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ml-baker"
+version = "0.0.1"
+description = "Profile, audit, and cost-estimate ML training jobs by empirical probing on target infrastructure."
+requires-python = ">=3.10"
+dependencies = [
+    "pydantic>=2.5",
+    "psutil>=5.9",
+    "numpy>=1.24",
+]
+
+[project.optional-dependencies]
+gpu = ["nvidia-ml-py>=12"]   # optional, for GPU memory/util measurement
+dev = ["pytest>=7", "ruff>=0.1"]
+
+[tool.setuptools.packages.find]
+include = ["ml_baker*"]
