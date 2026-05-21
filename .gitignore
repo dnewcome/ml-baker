@@ -15,5 +15,8 @@ dist/
 venv/
 .idea/
 .vscode/
-.claude/
+# Ignore local Claude Code state but track shared project skills.
+.claude/*
+!.claude/skills/
+!.claude/skills/**
 *.swp
