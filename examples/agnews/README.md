@@ -26,10 +26,30 @@ introduction to ml-baker.
 
 ## Prerequisites
 
-- Python 3.10+
+- Python 3.10+ (repo pins `3.11.13` via `.python-version` for pyenv users)
 - ~2 GB free disk space for first-time HuggingFace model + dataset downloads
 - For DistilBERT in reasonable time: a CUDA GPU. CPU works but is ~30×
   slower per epoch.
+
+## Setup with pyenv + venv (recommended)
+
+One-time setup from the repo root:
+
+```bash
+pyenv install -s 3.11.13          # no-op if already installed
+pyenv local 3.11.13               # .python-version is committed, so this is
+                                  # usually already correct after cd-ing in
+python -m venv .venv              # isolated env, keeps torch + transformers
+                                  # out of your global 3.11.13
+source .venv/bin/activate
+pip install -e ".[demo]"
+```
+
+After this, `./examples/agnews/run.sh` will **auto-activate `.venv/`** —
+no need to `source` it again on subsequent shells.
+
+Without pyenv: any Python ≥ 3.10 works. Replace the first two commands
+with whatever provides a 3.10+ interpreter.
 
 ## Quickstart
 
@@ -44,11 +64,14 @@ The script installs the `[demo]` extras (`datasets`, `scikit-learn`,
 `torch`, `transformers`, `accelerate`) on first run if they aren't
 importable yet. Subsequent runs skip the install probe.
 
-If `python3` on your `PATH` is not the interpreter you want:
+If your `python3` is not the interpreter you want (e.g. `.venv/` doesn't
+exist and `python3` resolves to system Python), override explicitly:
 
 ```bash
 PYTHON=~/.pyenv/versions/3.11.13/bin/python ./examples/agnews/run.sh
 ```
+
+Setting `$PYTHON` also suppresses the `.venv/` auto-activation.
 
 ## Manual install + run
 

@@ -16,6 +16,13 @@ SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 REPO_ROOT="$( cd "$SCRIPT_DIR/../.." && pwd )"
 cd "$REPO_ROOT"
 
+# Auto-activate .venv/ if it exists and no venv is currently active.
+# Skipped when $PYTHON is set explicitly — that's a deliberate override.
+if [[ -z "${VIRTUAL_ENV:-}" && -z "${PYTHON:-}" && -f .venv/bin/activate ]]; then
+  # shellcheck source=/dev/null
+  source .venv/bin/activate
+fi
+
 PYTHON="${PYTHON:-python3}"
 
 if ! command -v "$PYTHON" >/dev/null 2>&1; then
