@@ -47,6 +47,17 @@ never the framing; it's a meaningful expansion.
    the MLflow UI. That's how a tool stops being hand-wavey and starts
    being trusted.
 
+5. **Hyperparameter sweeps are not the natural mental model; scenarios
+   are.** Real-world contact (2026-05-21) revealed that users don't
+   think in terms of "declare a sweep, get a Pareto frontier." They
+   think in specific questions about their model: "does this scale
+   linearly?", "where does parallelization plateau?", "what's the
+   cheapest instance that finishes in under an hour?". Each question
+   wants a different probe plan and a different analyzer — not a generic
+   Cartesian sweep. This is heuristic, not analytical, and often needs
+   iteration (run one scenario, look at the answer, decide what to run
+   next). See Decision 4.
+
 ## Decision 1: framing — MLflow-first vs. agnostic vs. MLflow-only
 
 ### Options
@@ -188,6 +199,91 @@ themselves.
 - Optional but valuable: the AG News demo gets an MLflow-tracked variant
   to demonstrate the integration end-to-end.
 
+## Decision 4: scenarios vs. sweeps as the primary user surface
+
+### Options
+
+- **A. Sweep-and-Pareto (status quo).** Users declare hyperparameter
+  sweeps (NumericSweep / CategoricalSweep) and target lists; mlprof runs
+  the Cartesian product and reports the Pareto frontier. Pros: clean,
+  fully built. Cons: doesn't match how engineers actually think — they
+  have questions ("does this scale linearly?", "where does
+  parallelization plateau?") and have to translate them into sweep
+  configurations.
+
+- **B. Scenarios as first-class objects (RECOMMENDED).** Promote
+  question-shaped probe patterns to the primary user surface. Each
+  scenario knows the question it answers, the probe plan needed,
+  and a domain-specific analyzer. Sweeps become one scenario
+  (``scaling_with_n``) among many.
+
+  ```python
+  from mlprof.scenarios import scaling_with_n, parallelization_effect, cheapest_instance
+
+  scaling_with_n.run(spec, target="g5.xlarge")
+  # → "Scales as O(N^1.04). R²=0.99 on 5 subset sizes. Likely linear."
+
+  parallelization_effect.run(spec, target="c5.4xlarge", n_cpus=[1,2,4,8,16])
+  # → "Speedup 1.0/1.8/3.1/4.5/5.2x. Sub-linear past 4 CPUs (Amdahl ~ 0.85)."
+
+  cheapest_instance.run(spec, max_wall_clock_s=3600, candidates=[...])
+  # → "g5.xlarge meets budget at $1.01 (~42min). c5.4xlarge doesn't (9.2hr).
+  #    p3.2xlarge $4.50 (~24min) — only worth it if you need <30min."
+  ```
+
+  Pros: matches the actual mental model engineers use; each scenario can
+  have a focused analyzer (not just curve fitting); cheap individually
+  so users can iterate. Cons: more abstractions to maintain; the
+  existing Pareto frontier becomes one output shape among many, not THE
+  output shape.
+
+- **C. Both layers — sweeps stay primary, scenarios as a thin sugar
+  layer on top.** Pros: lowest risk; nothing existing changes. Cons:
+  doesn't actually address the insight that sweeps aren't the right
+  mental model; just papers over it.
+
+### Recommendation
+
+**B.** The existing sweep machinery is exactly the implementation of one
+specific scenario (``scaling_with_n``) — Cartesian over subset fractions
++ linear/loglinear/power fit. Other scenarios reuse the same probe
+infrastructure (measurement, subprocess launcher, runtime resolver) but
+plan their probes and analyze results differently.
+
+### Catalog of scenarios worth filing as separate issues
+
+| Scenario | Question it answers |
+|---|---|
+| ``scaling_with_n`` | Does this scale linearly with data size? What's the exponent? |
+| ``parallelization_effect`` | Where does adding CPUs/GPUs plateau? |
+| ``gpu_vs_cpu`` | Is GPU worth it for this specific model? |
+| ``cheapest_instance`` | Lowest-cost target that meets a wall-clock budget |
+| ``vram_headroom`` | Largest batch size that fits in target VRAM |
+| ``mixed_precision_payoff`` | What does fp16/bf16 buy us in time / cost / quality? |
+| ``stage_bottleneck`` | Which stage dominates wall-clock? CPU- or GPU-bound? (becomes the user-facing surface for [#13](https://github.com/dnewcome/mlprof/issues/13)) |
+| ``regression_guard`` | Did this perf optimization keep quality? (the user-facing surface for [#14](https://github.com/dnewcome/mlprof/issues/14)) |
+| ``checkpoint_robustness`` | Does the checkpointing actually work mid-training? (the user-facing surface for [#9](https://github.com/dnewcome/mlprof/issues/9) / [#11](https://github.com/dnewcome/mlprof/issues/11)) |
+| ``incremental_amortization`` | How much cheaper is warm-start vs from-scratch? (the user-facing surface for [#10](https://github.com/dnewcome/mlprof/issues/10)) |
+| ``spot_savings`` | What does spot pricing save with my checkpointing setup? (the user-facing surface for [#12](https://github.com/dnewcome/mlprof/issues/12)) |
+| ``deployment_readiness`` | Combined: model size + inference VRAM + cold-load time (combines [#8](https://github.com/dnewcome/mlprof/issues/8) + [#15](https://github.com/dnewcome/mlprof/issues/15)) |
+
+### What changes if you go B
+
+- New ``mlprof/scenarios/`` package with a ``Scenario`` protocol
+  defining ``run(...)`` and a ``Result`` shape.
+- Existing sweep + Pareto code stays — it becomes the implementation
+  of ``scaling_with_n`` and a generic ``hyperparameter_sweep`` scenario
+  for users who really do want Cartesian exploration.
+- README leads with scenario examples, not sweep examples.
+- The generate-modelspec skill output changes — instead of
+  "configure your sweep here", it suggests "you'll probably want to run
+  these scenarios first: [list]".
+- Most existing GH issues get a "implements scenario X" tag, since the
+  scenarios catalog above reorganizes the backlog around user-facing
+  questions instead of internal capabilities.
+- ``ProbeConfig`` becomes more of an internal detail; users mostly
+  interact with scenario parameters instead.
+
 ## Cross-cutting: how does this resolve the dependency story
 
 If you go B/B/B above:
@@ -213,13 +309,18 @@ not into its own isolated venv.
 - [#16](https://github.com/dnewcome/mlprof/issues/16) sagebaker ↔ mlprof relationship — needs minor update if mlprof goes MLflow-first
 - [#17](https://github.com/dnewcome/mlprof/issues/17) MLflow integration — needs to be re-scoped or split if decision 3 lands on B
 
-### Would need filing if B/B/B
+### Would need filing if B/B/B/B
 - Library mode v1: promote `measure()`/`audit()` to public API + docs
 - Library mode v2: `mlprof.profile()` top-level context manager
 - Pre-flight audit gate (capability to `raise` on incompatibilities)
 - Predicted-vs-actual feedback loop as an explicit feature
-- README rewrite for MLflow-first framing
+- README rewrite for MLflow-first + scenarios-first framing
 - AG News demo MLflow variant
+- **Scenario framework + baseline scenarios** — meta-issue defining the
+  `Scenario` protocol and an issue per scenario in the catalog above.
+  Most of the existing scenario-shaped issues (#9, #10, #11, #12, #13,
+  #14) get re-tagged as "implements scenario X" but their content stays
+  largely intact.
 
 ### Would need updating
 - README (headline + framing)
@@ -228,25 +329,37 @@ not into its own isolated venv.
 
 ## Recommended path if you don't want to think harder
 
-Commit to **B, B, B** (MLflow-first with protocol fallback; both modes;
-native MLflow integration). The pieces compose. The protocol stays as
-escape valve. Re-scope #17, file the four library-mode/MLflow issues
-above, then implement in this order:
+Commit to **B, B, B, B** (MLflow-first with protocol fallback; both
+modes; native MLflow integration; scenarios as primary user surface).
+The pieces compose: scenarios are the question-shaped front end,
+library mode is how scenarios get invoked during real training runs,
+MLflow is where scenario results land, and the agnostic protocol stays
+as an escape valve. Re-scope #17, file the four library-mode/MLflow
+issues + the scenario catalog issues, then implement in this order:
 
-1. **README + framing change** (an afternoon — no code, just docs)
-2. **Promote `measure()` and `audit()` to public API** (small, immediate
-   user value: people can start instrumenting today)
-3. **`from_mlflow_run()` helper** (cuts skill complexity, removes the
+1. **README + framing change** (afternoon — docs only, sets scenarios
+   + MLflow as the primary mental model)
+2. **Promote `measure()` and `audit()` to public API** (small,
+   immediate user value: people can start instrumenting today)
+3. **Define the `Scenario` protocol + ship 2–3 baseline scenarios**
+   (`scaling_with_n` as the obvious one since it's just a refactor of
+   existing code; plus `cheapest_instance` and `parallelization_effect`
+   as the next two highest-value). This proves the abstraction holds
+   before investing more.
+4. **`from_mlflow_run()` helper** (cuts skill complexity, removes the
    biggest manual-spec friction)
-4. **`mlprof.profile()` context + MLflow logging** (the unified entry
-   point users will actually use)
-5. **Stage profiling [#13](https://github.com/dnewcome/mlprof/issues/13)**
-   inside the library-mode + MLflow context
-6. **Predicted-vs-actual** once both predictions and library-mode
+5. **`mlprof.profile()` context + MLflow logging** (the unified entry
+   point users will actually use; scenarios run inside it)
+6. **Stage profiling [#13](https://github.com/dnewcome/mlprof/issues/13)** —
+   becomes the measurement primitive for the `stage_bottleneck` scenario
+7. **More scenarios as needed** based on real-world use — `gpu_vs_cpu`,
+   `vram_headroom`, `mixed_precision_payoff`, etc.
+8. **Predicted-vs-actual** once both predictions and library-mode
    measurements are landing on MLflow runs
 
-That sequence builds incremental value and ends with the tool that
-matches the discussion's eventual shape.
+That sequence builds incremental value, validates the scenario
+abstraction before doubling down, and ends with the tool that matches
+the discussion's eventual shape.
 
 ## Things I'd push back on if you proposed them
 
@@ -260,6 +373,12 @@ matches the discussion's eventual shape.
 - **Magic MLflow (C on decision 3)** — implicit cross-cutting integrations
   are hard to debug when they break. Users are best served by explicit
   primitives even if a top-level convenience wrapper exists.
+- **Scenarios on top of sweeps (C on decision 4)** — adding scenarios as
+  thin sugar over the existing sweep API doesn't address the actual
+  insight (that engineers think in questions, not parameter grids). It
+  papers over the wrong abstraction instead of replacing it. Better to
+  promote scenarios to first-class and let sweeps live as one specific
+  scenario implementation.
 
 ## Things this plan does *not* decide
 
@@ -272,3 +391,10 @@ matches the discussion's eventual shape.
 - What to do about sagebaker integration beyond
   [#16](https://github.com/dnewcome/mlprof/issues/16). The
   `from_sagebaker_plugin()` adapter remains optional.
+- The exact catalog of scenarios. The table in Decision 4 is a
+  starter set, not exhaustive. New scenarios will come up from real
+  use; the framework should make adding them cheap.
+- Whether scenarios should be composable (e.g. a `diagnose` scenario
+  that runs `scaling_with_n` + `stage_bottleneck` + `gpu_vs_cpu` and
+  produces a combined recommendation). Probably yes eventually, but
+  not in the first cut.
