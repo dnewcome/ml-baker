@@ -352,16 +352,14 @@ register(InstanceSpec(
   reference implementation of the user-supplied callables (synthetic).
 - [`examples/agnews/`](examples/agnews) — **realistic demo on the AG News
   text-classification dataset**. Two architectures (sklearn TF-IDF + LogReg
-  vs DistilBERT fine-tune) across multiple target instances, producing two
-  full reports with audits, scaling curves, and Pareto frontiers. Run with:
+  vs DistilBERT fine-tune) across multiple target instances. Has its own
+  [README](examples/agnews/README.md) with setup, expected runtimes, and
+  caveats. Quick start:
 
   ```bash
-  pip install -e ".[demo]"
-  python examples/agnews/demo.py
+  ./examples/agnews/run.sh --sklearn-only   # fast (~30s-2min on CPU)
+  ./examples/agnews/run.sh                  # full demo (both architectures)
   ```
-
-  The sklearn variant runs in seconds on any CPU; DistilBERT runs in a
-  few minutes on a GPU machine and notably longer on CPU.
 
 ## Roadmap
 

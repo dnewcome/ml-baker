@@ -175,9 +175,20 @@ def run_one(spec: ModelSpec) -> None:
         print(report.format())
 
 
-def main() -> None:
-    run_one(sklearn_spec())
-    run_one(distilbert_spec())
+def main(argv: list[str] | None = None) -> None:
+    import argparse
+    parser = argparse.ArgumentParser(description="AG News demo for ml-baker.")
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument("--sklearn-only", action="store_true",
+                       help="Run only the cheap sklearn variant (~30s-2min).")
+    group.add_argument("--distilbert-only", action="store_true",
+                       help="Run only the DistilBERT variant (slow on CPU).")
+    opts = parser.parse_args(argv)
+
+    if not opts.distilbert_only:
+        run_one(sklearn_spec())
+    if not opts.sklearn_only:
+        run_one(distilbert_spec())
 
 
 if __name__ == "__main__":
