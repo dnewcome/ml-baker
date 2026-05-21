@@ -1,13 +1,13 @@
-# ml-baker
+# mlprof
 
 > Estimate the cost, time, and quality of an ML training run *before* you
 > commit to it — and audit the training code for production-readiness while
 > you're at it.
 
-ml-baker is a framework-agnostic profiler for ML training workloads. You
+mlprof is a framework-agnostic profiler for ML training workloads. You
 describe your model (libraries used, hyperparameters, eval metrics,
 candidate target instances), point at your `train()` / `evaluate()` /
-`load_dataset()` functions, and ml-baker:
+`load_dataset()` functions, and mlprof:
 
 1. **Audits** the code's production-readiness — calls out missing
    checkpointing, single-process data loading, idle GPUs on multi-GPU
@@ -23,8 +23,8 @@ candidate target instances), point at your `train()` / `evaluate()` /
    explicit, not buried in raw numbers.
 
 It is **framework-agnostic** by design — you can use PyTorch, spaCy,
-sklearn, HuggingFace, or anything else. ml-baker never imports your
-framework; you implement three small callables and ml-baker orchestrates.
+sklearn, HuggingFace, or anything else. mlprof never imports your
+framework; you implement three small callables and mlprof orchestrates.
 
 ## Status
 
@@ -36,8 +36,8 @@ what is planned next.
 ## Installation
 
 ```bash
-git clone https://github.com/dnewcome/ml-baker.git
-cd ml-baker
+git clone https://github.com/dnewcome/mlprof.git
+cd mlprof
 pip install -e .
 ```
 
@@ -64,24 +64,24 @@ SageMaker, with a half-dozen possible instance types ranging from
 - Is the code production-ready (checkpointing, incremental training,
   deterministic, parallel data loading)?
 
-ml-baker answers these by combining a declarative audit (cheap) with
+mlprof answers these by combining a declarative audit (cheap) with
 empirical small-scale probes (cheap-ish) and extrapolation.
 
 ## Quickstart
 
 ### 1. Implement three callables
 
-ml-baker calls these. You implement them however you like.
+mlprof calls these. You implement them however you like.
 
 ```python
 # my_project/training.py
 from pathlib import Path
-from ml_baker import TrainResult, EvalResult, RuntimeConfig
+from mlprof import TrainResult, EvalResult, RuntimeConfig
 
 
 def load(subset_fraction: float = 1.0, split: str | None = None,
          seed: int | None = None):
-    """Return a dataset (or a subset). Opaque to ml-baker."""
+    """Return a dataset (or a subset). Opaque to mlprof."""
     ...
 
 
@@ -107,7 +107,7 @@ def evaluate(artifact_path: Path, eval_set) -> EvalResult:
 ### 2. Write a `ModelSpec`
 
 ```python
-from ml_baker import (
+from mlprof import (
     ModelSpec, DatasetSpec, EvalMetric, HyperParam,
     Capabilities, FrameworkHints, TargetInstance, ProbeConfig,
     NumericSweep, CategoricalSweep,
@@ -165,7 +165,7 @@ spec = ModelSpec(
 ### 3. Audit (no compute spent)
 
 ```python
-from ml_baker import audit
+from mlprof import audit
 
 report = audit(spec)
 print(report.format())
@@ -196,7 +196,7 @@ INFO (4):
 ### 4. Probe and report
 
 ```python
-from ml_baker import audit, build_report, run
+from mlprof import audit, build_report, run
 
 with tempfile.TemporaryDirectory() as td:
     results = run(spec, run_dir=td, launcher="subprocess")
@@ -261,7 +261,7 @@ User callables ───────────┐        ▼
 
 ### Key design choices
 
-- **Framework-agnostic.** ml-baker never imports your training framework.
+- **Framework-agnostic.** mlprof never imports your training framework.
   It calls user-supplied callables referenced by dotted-path string. The
   audit can run without even importing them.
 - **External measurement.** Wall-clock, RAM, VRAM, and GPU utilization are
@@ -284,7 +284,7 @@ User callables ───────────┐        ▼
 
 ## The user-implemented protocol
 
-Three callables. Full signatures in [`ml_baker/protocol.py`](ml_baker/protocol.py).
+Three callables. Full signatures in [`mlprof/protocol.py`](mlprof/protocol.py).
 
 ```python
 class LoadDatasetFn(Protocol):
@@ -316,7 +316,7 @@ class RuntimeConfig:
 
 ## Target catalog
 
-[`ml_baker/targets.py`](ml_baker/targets.py) ships with ~16 common AWS
+[`mlprof/targets.py`](mlprof/targets.py) ships with ~16 common AWS
 instance types covering CPU (`c5`, `c6i`, `m5`), T4 (`g4dn`), A10G (`g5`),
 V100 (`p3`), A100 (`p4d`, `p4de`), and H100 (`p5`). Both EC2 names
 (`g5.xlarge`) and SageMaker names (`ml.g5.xlarge`) resolve to the same
@@ -329,7 +329,7 @@ are stamped with `PRICE_AS_OF` so it is obvious when they need refreshing.
 Add your own:
 
 ```python
-from ml_baker.targets import InstanceSpec, GpuSpec, register
+from mlprof.targets import InstanceSpec, GpuSpec, register
 
 register(InstanceSpec(
     instance_type="g5.24xlarge",

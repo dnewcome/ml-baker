@@ -32,13 +32,13 @@ if ! command -v "$PYTHON" >/dev/null 2>&1; then
 fi
 
 if ! "$PYTHON" -c "import sys; sys.exit(0 if sys.version_info >= (3, 10) else 1)" 2>/dev/null; then
-  echo "ERROR: ml-baker needs Python 3.10+. Found: $($PYTHON --version 2>&1)" >&2
+  echo "ERROR: mlprof needs Python 3.10+. Found: $($PYTHON --version 2>&1)" >&2
   exit 1
 fi
 
 # Probe for the heavy demo deps before installing — keeps re-runs fast.
 if ! "$PYTHON" -c "import datasets, sklearn, transformers" 2>/dev/null; then
-  echo "Installing ml-baker[demo] dependencies (one-time, ~2GB download)..."
+  echo "Installing mlprof[demo] dependencies (one-time, ~2GB download)..."
   "$PYTHON" -m pip install -e ".[demo]"
 fi
 

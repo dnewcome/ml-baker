@@ -19,11 +19,11 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Iterator
 
-from ml_baker.probe import ProbeInput, ProbeResult, run_probe
-from ml_baker.runtime import resolve_runtime
-from ml_baker.spec import ModelSpec
-from ml_baker.sweep import expand_sweeps
-from ml_baker.targets import resolve
+from mlprof.probe import ProbeInput, ProbeResult, run_probe
+from mlprof.runtime import resolve_runtime
+from mlprof.spec import ModelSpec
+from mlprof.sweep import expand_sweeps
+from mlprof.targets import resolve
 
 
 @dataclass(frozen=True)
@@ -142,7 +142,7 @@ def _launch_subprocess(probe: ProbeInput, *, timeout: int) -> ProbeResult:
     input_path.parent.mkdir(parents=True, exist_ok=True)
     input_path.write_text(json.dumps(asdict(probe), indent=2))
 
-    cmd = [sys.executable, "-m", "ml_baker.probe", str(input_path)]
+    cmd = [sys.executable, "-m", "mlprof.probe", str(input_path)]
     try:
         proc = subprocess.run(
             cmd,

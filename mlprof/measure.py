@@ -1,6 +1,6 @@
 """External measurement of a training probe.
 
-Measurement is *external* on purpose — ml-baker stays framework-agnostic by
+Measurement is *external* on purpose — mlprof stays framework-agnostic by
 not asking torch/spacy/sklearn to self-report. A background sampler thread
 polls ``psutil`` (CPU/RSS) and ``nvidia-ml-py`` (VRAM/util, if available)
 while the user's ``train()`` runs in the foreground.

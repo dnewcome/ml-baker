@@ -1,6 +1,6 @@
 # AG News demo
 
-End-to-end ml-baker demo on a real NLP dataset
+End-to-end mlprof demo on a real NLP dataset
 ([AG News](https://huggingface.co/datasets/ag_news): 120k news articles,
 4 topic classes). Two architectures at very different points on the
 cost/quality curve:
@@ -8,7 +8,7 @@ cost/quality curve:
 - **sklearn TF-IDF + LogReg** — cheap CPU baseline (~92% accuracy)
 - **DistilBERT fine-tune** — heavier, GPU-preferred (~94–95% accuracy)
 
-Each runs through the standard ml-baker pipeline: declarative audit →
+Each runs through the standard mlprof pipeline: declarative audit →
 probe on small subsets → fit scaling curves → predict cost / memory /
 quality at the full dataset → Pareto frontier.
 
@@ -22,7 +22,7 @@ The specs are deliberately set up to surface key audit findings:
   — "two of those four GPUs would sit idle."
 
 See the [top-level README](../../README.md) for the conceptual
-introduction to ml-baker.
+introduction to mlprof.
 
 ## Prerequisites
 
@@ -145,12 +145,12 @@ PARETO FRONTIER (cost ↓, accuracy optimum):
   instance's `$/hr`. Relative ordering across architectures and configs
   is faithful; absolute "what would this cost on a real `g5.xlarge`"
   needs the Docker launcher
-  ([issue #1](https://github.com/dnewcome/ml-baker/issues/1)) or a
+  ([issue #1](https://github.com/dnewcome/mlprof/issues/1)) or a
   SageMaker launcher.
 - **The instance-type catalog uses approximate `us-east-1` on-demand
   prices** stamped with `PRICE_AS_OF = "2026-05-20"`. Live region-aware
   pricing is
-  [issue #2](https://github.com/dnewcome/ml-baker/issues/2).
+  [issue #2](https://github.com/dnewcome/mlprof/issues/2).
 - **DistilBERT spec doesn't declare a CPU target** because running it on
   CPU for the demo would take hours. The audit *would* still flag a CPU
   target if you added one (and would not block the run — DistilBERT

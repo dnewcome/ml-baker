@@ -16,7 +16,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from ml_baker import EvalResult, RuntimeConfig, TrainResult
+from mlprof import EvalResult, RuntimeConfig, TrainResult
 
 
 MODEL_NAME = "distilbert-base-uncased"

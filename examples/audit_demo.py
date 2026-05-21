@@ -7,7 +7,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from ml_baker import (
+from mlprof import (
     ModelSpec, DatasetSpec, EvalMetric, HyperParam,
     Capabilities, FrameworkHints, TargetInstance, ProbeConfig,
     NumericSweep, CategoricalSweep,

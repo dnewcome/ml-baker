@@ -11,9 +11,9 @@ what the runner *would* inject — no divergence between predicted and actual.
 
 from __future__ import annotations
 
-from ml_baker.protocol import MultiGpuStrategy, Precision, RuntimeConfig
-from ml_baker.spec import Capabilities
-from ml_baker.targets import InstanceSpec
+from mlprof.protocol import MultiGpuStrategy, Precision, RuntimeConfig
+from mlprof.spec import Capabilities
+from mlprof.targets import InstanceSpec
 
 
 DEFAULT_SEED = 1337

@@ -6,7 +6,7 @@ Two ModelSpecs, two architectures, multiple target instances:
   2. DistilBERT fine-tune      — heavier, GPU-friendly, ~94-95% acc
 
 Each runs through audit + probes + report. The combined output makes the
-ml-baker value props concrete: the audit flags wasted-GPU-$ on the sklearn
+mlprof value props concrete: the audit flags wasted-GPU-$ on the sklearn
 spec's g5 target and flags idle-GPU-$ on DistilBERT's g5.12xlarge target;
 the Pareto frontier across both architectures shows where the cost/quality
 tradeoff actually lives.
@@ -40,7 +40,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from ml_baker import (
+from mlprof import (
     Capabilities,
     DatasetSpec,
     EvalMetric,
@@ -177,7 +177,7 @@ def run_one(spec: ModelSpec) -> None:
 
 def main(argv: list[str] | None = None) -> None:
     import argparse
-    parser = argparse.ArgumentParser(description="AG News demo for ml-baker.")
+    parser = argparse.ArgumentParser(description="AG News demo for mlprof.")
     group = parser.add_mutually_exclusive_group()
     group.add_argument("--sklearn-only", action="store_true",
                        help="Run only the cheap sklearn variant (~30s-2min).")

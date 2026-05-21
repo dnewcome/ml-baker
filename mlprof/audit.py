@@ -17,9 +17,9 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Literal
 
-from ml_baker.runtime import resolve_runtime
-from ml_baker.spec import ModelSpec
-from ml_baker.targets import InstanceSpec, resolve
+from mlprof.runtime import resolve_runtime
+from mlprof.spec import ModelSpec
+from mlprof.targets import InstanceSpec, resolve
 
 
 Severity = Literal["incompatible", "warning", "info"]

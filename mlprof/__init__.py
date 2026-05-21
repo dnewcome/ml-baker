@@ -1,4 +1,4 @@
-from ml_baker.spec import (
+from mlprof.spec import (
     Capabilities,
     CategoricalSweep,
     DatasetSpec,
@@ -11,7 +11,7 @@ from ml_baker.spec import (
     Sweep,
     TargetInstance,
 )
-from ml_baker.protocol import (
+from mlprof.protocol import (
     EvaluateFn,
     EvalResult,
     LoadDatasetFn,
@@ -21,26 +21,26 @@ from ml_baker.protocol import (
     TrainFn,
     TrainResult,
 )
-from ml_baker.targets import (
+from mlprof.targets import (
     GpuSpec,
     InstanceSpec,
     known_instances,
     register,
     resolve,
 )
-from ml_baker.runtime import resolve_runtime
-from ml_baker.audit import AuditFinding, AuditReport, audit
-from ml_baker.sweep import expand_sweeps
-from ml_baker.measure import Measurement, measure
-from ml_baker.probe import ProbeInput, ProbeResult, run_probe
-from ml_baker.runner import RunPlan, RunResults, plan_run, run
-from ml_baker.scaling import (
+from mlprof.runtime import resolve_runtime
+from mlprof.audit import AuditFinding, AuditReport, audit
+from mlprof.sweep import expand_sweeps
+from mlprof.measure import Measurement, measure
+from mlprof.probe import ProbeInput, ProbeResult, run_probe
+from mlprof.runner import RunPlan, RunResults, plan_run, run
+from mlprof.scaling import (
     ScalingFit,
     fit_memory_scaling,
     fit_quality_scaling,
     fit_time_scaling,
 )
-from ml_baker.report import GroupSummary, Report, build_report
+from mlprof.report import GroupSummary, Report, build_report
 
 __all__ = [
     "Capabilities",

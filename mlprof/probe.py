@@ -2,7 +2,7 @@
 
 Invocation::
 
-    python -m ml_baker.probe <probe_input.json>
+    python -m mlprof.probe <probe_input.json>
 
 Reads the input JSON, imports the user's train/evaluate/load_dataset by
 dotted path, runs them wrapped in external measurement, and writes a result
@@ -10,7 +10,7 @@ JSON to the path specified in the input. Same binary works in three
 launchers — local subprocess (today), Docker container, SageMaker training
 job — because the contract is just "read input file, write result file".
 
-The runner (``ml_baker.runner``) is what produces probe_input.json files and
+The runner (``mlprof.runner``) is what produces probe_input.json files and
 collects the resulting probe_result.json files. The probe itself does not
 talk to the runner.
 """
@@ -26,10 +26,10 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
 
-from ml_baker.measure import Measurement, measure
-from ml_baker.protocol import RuntimeConfig
-from ml_baker.spec import ModelSpec
-from ml_baker.targets import resolve
+from mlprof.measure import Measurement, measure
+from mlprof.protocol import RuntimeConfig
+from mlprof.spec import ModelSpec
+from mlprof.targets import resolve
 
 
 @dataclass
@@ -162,7 +162,7 @@ def _import_dotted(path: str) -> Any:
 
 
 def _cli() -> int:
-    parser = argparse.ArgumentParser(prog="ml_baker.probe")
+    parser = argparse.ArgumentParser(prog="mlprof.probe")
     parser.add_argument("input_path", type=Path, help="path to probe input JSON")
     args = parser.parse_args()
 

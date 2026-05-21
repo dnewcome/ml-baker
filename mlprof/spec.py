@@ -216,8 +216,8 @@ class ModelSpec(BaseModel):
     version: str = "0.0.1"
 
     # User-implemented callables (dotted paths so spec parsing is import-free).
-    train_callable: str                           # ml_baker.protocol.TrainFn
-    evaluate_callable: str                        # ml_baker.protocol.EvaluateFn
+    train_callable: str                           # mlprof.protocol.TrainFn
+    evaluate_callable: str                        # mlprof.protocol.EvaluateFn
 
     dataset: DatasetSpec
     eval_metrics: list[EvalMetric]

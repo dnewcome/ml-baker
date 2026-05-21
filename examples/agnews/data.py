@@ -1,4 +1,4 @@
-"""Shared AG News loader for the ml-baker demo.
+"""Shared AG News loader for the mlprof demo.
 
 AG News is a 4-class news topic classification dataset: 120k train / 7.6k test.
 Downloaded via HuggingFace ``datasets`` (cached on disk after the first call,
@@ -21,7 +21,7 @@ def _full_split(split: str) -> Any:
 
 def load(subset_fraction: float = 1.0, split: str | None = None,
          seed: int | None = None):
-    """ml-baker LoadDatasetFn. Returns a HF Dataset (consumable by both the
+    """mlprof LoadDatasetFn. Returns a HF Dataset (consumable by both the
     sklearn and the DistilBERT trainables — they each adapt it differently)."""
     split = split or "train"
     ds = _full_split(split)
