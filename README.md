@@ -366,6 +366,39 @@ train and eval. Local paths are passed to your `evaluate()` as a `Path`; remote
 URIs (`s3://`, `gs://`) are passed through unchanged for your loader to resolve.
 Runs in-process, so call it where your `evaluate_callable` is importable.
 
+## Dataset profiling — spot roadblocks before you train
+
+mlprof is data-blind by design, but the *shape* of the training set often
+predicts trouble — and some of it is computable cheaply, with no training run.
+The clearest case is **block sizes**: blocked / all-pairs-within-group methods
+(dedup, blocked clustering, entity resolution) do work proportional to
+`Σ C(block_size, 2)`, so one giant block (a common token, a huge near-duplicate
+cluster) dominates wall-clock. That's an O(n) group-by away — you don't need to
+discover it by crashing a full run.
+
+You supply the block sizes (you own the blocking key); mlprof does the reusable
+pair-cost analysis and surfaces the roadblock as **neutral facts** — it tells
+you *where the cost is*, not which algorithm to use (that decision is yours):
+
+```python
+from mlprof import block_size_profile
+
+profile = block_size_profile(df.groupby("blocking_key").size().to_dict())
+print(profile.format())
+# WARNING:
+#   [pair_explosion_largest_block] Largest block (40,000 items) generates
+#   799,980,000 pairs = 94% of all candidate pairs. All-pairs-within-block
+#   work is dominated by this one block.
+# INFO:
+#   [blocking_reduction] Blocking yields 850,233,000 candidate pairs —
+#   4x fewer than all-pairs (3,120,460,500).
+```
+
+This is an early, deliberately-narrow first cut of dataset profiling (see
+[`examples/dataset_profile_demo.py`](examples/dataset_profile_demo.py)); other
+shape signals (similarity distribution, outlier fraction, class balance for
+representative sampling) are the natural next additions.
+
 ## How it composes
 
 ```
@@ -499,6 +532,9 @@ register(InstanceSpec(
 - [`examples/baseline_compare_demo.py`](examples/baseline_compare_demo.py) —
   converging on a baseline across a probing session: establish → tradeoff →
   promote. No ML libraries.
+- [`examples/dataset_profile_demo.py`](examples/dataset_profile_demo.py) —
+  block-size profiling: surface a pair-explosion roadblock before training.
+  No ML libraries.
 - [`examples/fake_trainable.py`](examples/fake_trainable.py) — a
   reference implementation of the user-supplied callables (synthetic).
 - [`examples/agnews/`](examples/agnews) — **realistic demo on the AG News

@@ -30,6 +30,7 @@ from mlprof.targets import (
 )
 from mlprof.runtime import resolve_runtime
 from mlprof.audit import AuditFinding, AuditReport, audit
+from mlprof.dataset import DatasetProfile, block_size_profile, block_sizes_from_labels
 from mlprof.sweep import expand_sweeps
 from mlprof.measure import Measurement, measure
 from mlprof.profile import (
@@ -73,6 +74,7 @@ __all__ = [
     "TrainResult",
     "AuditFinding",
     "AuditReport",
+    "DatasetProfile",
     "GroupSummary",
     "IncompatibleSpecError",
     "Measurement",
@@ -86,6 +88,8 @@ __all__ = [
     "ScalingFit",
     "StageTiming",
     "audit",
+    "block_size_profile",
+    "block_sizes_from_labels",
     "build_report",
     "evaluate_existing",
     "expand_sweeps",
