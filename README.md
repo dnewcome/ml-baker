@@ -394,10 +394,27 @@ print(profile.format())
 #   4x fewer than all-pairs (3,120,460,500).
 ```
 
-This is an early, deliberately-narrow first cut of dataset profiling (see
-[`examples/dataset_profile_demo.py`](examples/dataset_profile_demo.py)); other
-shape signals (similarity distribution, outlier fraction, class balance for
-representative sampling) are the natural next additions.
+Block sizes are one signal; the same data-blind, surface-don't-prescribe shape
+applies across a small family of profilers (see
+[`examples/dataset_profile_demo.py`](examples/dataset_profile_demo.py)):
+
+| Profiler | Surfaces |
+|---|---|
+| `block_size_profile` | pair-explosion cost of blocked/all-pairs methods (`Σ C(size,2)`) |
+| `class_balance_profile` | imbalance ratio, entropy, and the small-class floor that limits how far you can subsample |
+| `stratified_plan` | per-group draw counts for a representative subsample (mlprof computes the plan; your loader draws it) |
+| `similarity_profile` | distribution of pairwise similarities — clean separation vs a blur where FP/FN concentrate (Sarle bimodality coefficient) |
+| `outlier_profile` | IQR/σ outlier fractions and tail heaviness |
+
+Each returns a `DatasetProfile` (scalar `stats`, structured `data`, and neutral
+`findings`). For a spec-integrated **pre-flight** — the explicit parallel to the
+static capability `audit(spec)` — set `DatasetSpec.analyze_callable` to a
+function returning profiles, and call `data_audit(spec)` before probing:
+
+```python
+profiles = mlprof.data_audit(spec)        # runs your analyze() over cheaply-loaded data
+print(mlprof.format_data_audit(profiles)) # neutral shape facts, no training spent
+```
 
 ## How it composes
 

@@ -30,7 +30,17 @@ from mlprof.targets import (
 )
 from mlprof.runtime import resolve_runtime
 from mlprof.audit import AuditFinding, AuditReport, audit
-from mlprof.dataset import DatasetProfile, block_size_profile, block_sizes_from_labels
+from mlprof.dataset import (
+    DatasetProfile,
+    block_size_profile,
+    block_sizes_from_labels,
+    class_balance_profile,
+    data_audit,
+    format_data_audit,
+    outlier_profile,
+    similarity_profile,
+    stratified_plan,
+)
 from mlprof.sweep import expand_sweeps
 from mlprof.measure import Measurement, measure
 from mlprof.profile import (
@@ -91,8 +101,14 @@ __all__ = [
     "block_size_profile",
     "block_sizes_from_labels",
     "build_report",
+    "class_balance_profile",
+    "data_audit",
     "evaluate_existing",
     "expand_sweeps",
+    "format_data_audit",
+    "outlier_profile",
+    "similarity_profile",
+    "stratified_plan",
     "fit_memory_scaling",
     "fit_quality_scaling",
     "fit_time_scaling",

@@ -80,3 +80,19 @@ def evaluate_echo(artifact_path, eval_set) -> EvalResult:
         "artifact_is_str": float(isinstance(artifact_path, str)),
         "eval_set_rows": float((eval_set or {}).get("n_rows", -1)),
     })
+
+
+def analyze(dataset):
+    """A data_audit analyze callable returning a single DatasetProfile."""
+    from mlprof import block_size_profile
+
+    n = dataset["n_rows"]
+    return block_size_profile([n // 2, n // 2])
+
+
+def analyze_multi(dataset):
+    """A data_audit analyze callable returning multiple DatasetProfiles."""
+    from mlprof import block_size_profile, class_balance_profile
+
+    n = dataset["n_rows"]
+    return [block_size_profile([n]), class_balance_profile({"pos": n // 2, "neg": n // 2})]

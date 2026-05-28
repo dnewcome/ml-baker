@@ -166,6 +166,9 @@ class DatasetSpec(BaseModel):
     subset_strategy: Literal["random", "stratified", "head"] = "random"
     eval_split: str | None = None                 # named split or path for held-out eval
     stratify_column: str | None = None            # required if subset_strategy == "stratified"
+    analyze_callable: str | None = None           # optional dotted path: analyze(dataset) ->
+                                                  # DatasetProfile | list[DatasetProfile]. Run by
+                                                  # data_audit() as a pre-flight (no training).
 
 
 class EvalMetric(BaseModel):
