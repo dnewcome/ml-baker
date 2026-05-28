@@ -262,7 +262,24 @@ print(parallelization_effect.run(
 # Compare algorithm variants at a specific data size:
 print(algorithm_selection.run(
     [spec_agglomerative, spec_lsh], target="g5.8xlarge", n=88_000).format())
+
+# Judge a candidate against a baseline you converge on as you probe:
+from mlprof.scenarios import baseline_compare
+
+r = baseline_compare.run(naive_result)                 # establishes the baseline
+base = r.data["baseline"]
+r = baseline_compare.run(candidate, baseline=base)     # tradeoff vs baseline
+# → "f1 +2.3% (better); cost_usd +40% (worse) — Tradeoff: gaining f1 at the
+#    cost of cost_usd. Worthwhile if f1 matters more than cost_usd."
+if worthwhile:
+    base = r.data["candidate"]                         # promote the challenger
 ```
+
+`baseline_compare` is for the *exploration* phase: rather than gating against a
+fixed bar, you converge on a baseline and judge each candidate as a tradeoff
+across quality **and** cost/time/memory. It's input-agnostic — feed it an
+`EvalResult`, a `ProfileReport`, a `ProbeResult`, a dict, a list of those
+merged, or an artifact path it evaluates for you.
 
 Each scenario returns a `ScenarioResult` with `.question`, `.answer`,
 `.recommendation`, `.data` (raw probe results for further analysis), and an
@@ -479,6 +496,9 @@ register(InstanceSpec(
 - [`examples/library_mode_demo.py`](examples/library_mode_demo.py) —
   library mode: `mlprof.profile()` instrumenting a run from the inside with
   per-stage timings. No ML libraries.
+- [`examples/baseline_compare_demo.py`](examples/baseline_compare_demo.py) —
+  converging on a baseline across a probing session: establish → tradeoff →
+  promote. No ML libraries.
 - [`examples/fake_trainable.py`](examples/fake_trainable.py) — a
   reference implementation of the user-supplied callables (synthetic).
 - [`examples/agnews/`](examples/agnews) — **realistic demo on the AG News

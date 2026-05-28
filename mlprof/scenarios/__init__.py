@@ -26,6 +26,13 @@ from mlprof.scenarios.algorithm_selection import (
     AlgorithmSelection,
     algorithm_selection,
 )
+from mlprof.scenarios.baseline_compare import (
+    Baseline,
+    BaselineCompare,
+    MetricDelta,
+    baseline_compare,
+    to_vector,
+)
 
 __all__ = [
     "Scenario",
@@ -37,4 +44,9 @@ __all__ = [
     "parallelization_effect",
     "AlgorithmSelection",
     "algorithm_selection",
+    "Baseline",
+    "BaselineCompare",
+    "MetricDelta",
+    "baseline_compare",
+    "to_vector",
 ]
