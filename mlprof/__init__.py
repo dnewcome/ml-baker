@@ -32,8 +32,15 @@ from mlprof.runtime import resolve_runtime
 from mlprof.audit import AuditFinding, AuditReport, audit
 from mlprof.sweep import expand_sweeps
 from mlprof.measure import Measurement, measure
+from mlprof.profile import (
+    IncompatibleSpecError,
+    ProfileReport,
+    Profiler,
+    StageTiming,
+    profile,
+)
 from mlprof.probe import ProbeInput, ProbeResult, run_probe
-from mlprof.runner import RunPlan, RunResults, plan_run, run
+from mlprof.runner import RunPlan, RunResults, evaluate_existing, plan_run, run
 from mlprof.scaling import (
     ScalingFit,
     fit_memory_scaling,
@@ -67,15 +74,20 @@ __all__ = [
     "AuditFinding",
     "AuditReport",
     "GroupSummary",
+    "IncompatibleSpecError",
     "Measurement",
     "ProbeInput",
     "ProbeResult",
+    "ProfileReport",
+    "Profiler",
     "Report",
     "RunPlan",
     "RunResults",
     "ScalingFit",
+    "StageTiming",
     "audit",
     "build_report",
+    "evaluate_existing",
     "expand_sweeps",
     "fit_memory_scaling",
     "fit_quality_scaling",
@@ -83,6 +95,7 @@ __all__ = [
     "known_instances",
     "measure",
     "plan_run",
+    "profile",
     "register",
     "resolve",
     "resolve_runtime",

@@ -16,16 +16,16 @@ import subprocess
 import sys
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Iterator
+from typing import TYPE_CHECKING, Any, Iterator
 
-from mlprof.probe import ProbeInput, ProbeResult, run_probe
+from mlprof.probe import ProbeInput, ProbeResult, _import_dotted, run_probe
 from mlprof.runtime import resolve_runtime
 from mlprof.spec import ModelSpec
 from mlprof.sweep import expand_sweeps
 from mlprof.targets import InstanceSpec, resolve
 
 if TYPE_CHECKING:
-    from mlprof.protocol import RuntimeConfig
+    from mlprof.protocol import EvalResult, RuntimeConfig
 
 
 @dataclass(frozen=True)
@@ -188,6 +188,52 @@ def execute_probes(
             _emit_progress(i, len(probes), probe)
         results.append(_launch(probe, launcher, timeout=timeout))
     return results
+
+
+def evaluate_existing(
+    spec: ModelSpec,
+    artifact_path: str | Path,
+    *,
+    eval_set: Any = None,
+    seed: int | None = None,
+) -> "EvalResult":
+    """Run ``evaluate()`` against an existing artifact, skipping ``train()``.
+
+    The runner normally chains ``train() → evaluate()`` as one atomic probe.
+    When training is expensive (a 45-minute SageMaker job) but you want to
+    evaluate the resulting artifact against a gold standard — or re-evaluate it
+    under several eval configurations — there is no reason to pay for training
+    again. ``TrainResult.artifact_path`` is already the explicit handoff
+    between the two steps; this entrypoint just starts from an artifact you
+    already have.
+
+    Parameters
+    ----------
+    spec : the ModelSpec — only its ``evaluate_callable`` and (for auto-loading
+        the eval set) ``dataset`` are used here; no training is run.
+    artifact_path : path to the trained artifact. A local path is passed to
+        ``evaluate()`` as a ``Path``; a URI (``s3://...``, ``gs://...``) is
+        passed through unchanged as a string for the user's loader to resolve.
+    eval_set : the held-out set to evaluate on. If ``None``, it is materialized
+        via the spec's ``LoadDatasetFn`` at full size on ``dataset.eval_split``.
+    seed : forwarded to the loader when ``eval_set`` is auto-loaded.
+
+    Returns the user's ``EvalResult`` — the same shape produced inside a full
+    probe. Runs in-process: call it from the environment where your
+    ``evaluate_callable`` and its dependencies are importable.
+    """
+    evaluate_fn = _import_dotted(spec.evaluate_callable)
+    if eval_set is None:
+        load_fn = _import_dotted(spec.dataset.loader)
+        eval_set = load_fn(subset_fraction=1.0, split=spec.dataset.eval_split, seed=seed)
+    return evaluate_fn(artifact_path=_as_artifact(artifact_path), eval_set=eval_set)
+
+
+def _as_artifact(artifact_path: str | Path) -> str | Path:
+    """Local paths become ``Path``; remote URIs stay strings so the user's
+    loader (boto3, gcsfs, ...) can resolve them itself."""
+    s = str(artifact_path)
+    return s if "://" in s else Path(s)
 
 
 def _launch(probe: ProbeInput, launcher: str, *, timeout: int) -> ProbeResult:

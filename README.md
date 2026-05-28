@@ -278,6 +278,77 @@ The baseline scenarios shipping today are `scaling_with_n`,
 [roadmap](#roadmap) tracks the rest of the catalog (`gpu_vs_cpu`,
 `vram_headroom`, `regression_guard`, `cheapest_instance`, ...).
 
+## Library mode — instrument a real training run
+
+Everything above is *probe mode*: mlprof predicts cost/time/memory before you
+commit by running small external probes. That requires your training code to
+be importable in mlprof's environment, which is awkward for complex production
+models. **Library mode** sidesteps it — you `import mlprof` *inside* the
+training script you're already running, so you're already in the right env,
+with the right data, on the right hardware. The measurements are of the real
+run, not an extrapolation.
+
+The low-level primitive is `measure()` (already public) for timing one block:
+
+```python
+import mlprof
+
+with mlprof.measure() as m:
+    labels = run_agglomerative(distances, threshold)
+
+print(m.wall_clock_s, m.peak_rss_mb)   # also peak_vram_mb / gpu_util_avg with [gpu]
+```
+
+`profile()` is the unified entry point. It optionally runs the pre-flight
+`audit()` (and can **fail fast** on hard blockers before you spend compute),
+captures per-stage timings, builds a single-run report, and — given an MLflow
+run — logs all of it there:
+
+```python
+with mlprof.profile(spec=spec, mlflow_run=mlflow.active_run(),
+                    on_blocker="raise") as p:
+    with p.stage("load"):
+        data = load_everything()
+    with p.stage("cluster"):
+        labels = run_agglomerative(data, threshold)
+
+print(p.report().format())
+# === Profile: brand-clustering ===
+#   wall_clock: 42.3m
+#   peak_rss:   18.4GB
+# STAGES:
+#   load                        3.1m  ( 7.3%)  rss=6.20GB
+#   cluster                    38.9m  (92.0%)  rss=18.40GB
+#   (unstaged)                  0.3m  ( 0.7%)
+```
+
+MLflow logging is optional (`pip install 'mlprof[mlflow]'`); without it, a
+passed `mlflow_run` is ignored with a warning and the report is still built.
+The single-run report intentionally omits the scaling fits and Pareto frontier
+— those need multiple data sizes, which a single real run doesn't have (use a
+scenario or the sweep runner for that).
+
+### Eval-only mode
+
+When training is expensive but evaluation is cheap, you often want to evaluate
+an artifact you *already have* — against a gold standard, or under several eval
+configurations — without paying to retrain. `evaluate_existing()` runs just the
+`evaluate()` step against an existing artifact:
+
+```python
+result = mlprof.evaluate_existing(
+    spec,
+    "s3://my-bucket/run-123/model.tar.gz",   # local Path or remote URI
+    # eval_set=...  # optional; auto-loaded via LoadDatasetFn(split=eval_split) if omitted
+)
+print(result.metrics)   # same EvalResult shape as inside a full probe
+```
+
+No protocol change — `TrainResult.artifact_path` is already the handoff between
+train and eval. Local paths are passed to your `evaluate()` as a `Path`; remote
+URIs (`s3://`, `gs://`) are passed through unchanged for your loader to resolve.
+Runs in-process, so call it where your `evaluate_callable` is importable.
+
 ## How it composes
 
 ```
@@ -405,6 +476,9 @@ register(InstanceSpec(
 - [`examples/scenario_demo.py`](examples/scenario_demo.py) — the three
   baseline scenarios (`scaling_with_n`, `parallelization_effect`,
   `algorithm_selection`) against a synthetic trainable. No ML libraries.
+- [`examples/library_mode_demo.py`](examples/library_mode_demo.py) —
+  library mode: `mlprof.profile()` instrumenting a run from the inside with
+  per-stage timings. No ML libraries.
 - [`examples/fake_trainable.py`](examples/fake_trainable.py) — a
   reference implementation of the user-supplied callables (synthetic).
 - [`examples/agnews/`](examples/agnews) — **realistic demo on the AG News

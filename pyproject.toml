@@ -15,6 +15,7 @@ dependencies = [
 
 [project.optional-dependencies]
 gpu = ["nvidia-ml-py>=12"]   # optional, for GPU memory/util measurement
+mlflow = ["mlflow>=2.9"]     # optional, for library-mode profile() MLflow logging
 dev = ["pytest>=7", "ruff>=0.1"]
 demo = [
     # Heavy deps used only by examples/. Install with: pip install -e ".[demo]"

@@ -70,3 +70,13 @@ def evaluate(artifact_path: Path, eval_set: dict) -> EvalResult:
     # Logarithmic learning curve toward the algorithm's quality ceiling.
     f1 = min(ceiling, 0.40 + 0.05 * math.log(max(n, 1)))
     return EvalResult(metrics={"f1": f1})
+
+
+def evaluate_echo(artifact_path, eval_set) -> EvalResult:
+    """Reports how it received its arguments — used to verify that
+    evaluate_existing passes local paths as Path and URIs as str, and that the
+    eval_set was materialized."""
+    return EvalResult(metrics={
+        "artifact_is_str": float(isinstance(artifact_path, str)),
+        "eval_set_rows": float((eval_set or {}).get("n_rows", -1)),
+    })
