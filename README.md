@@ -26,6 +26,15 @@ It is **framework-agnostic** by design — you can use PyTorch, spaCy,
 sklearn, HuggingFace, or anything else. mlprof never imports your
 framework; you implement three small callables and mlprof orchestrates.
 
+**Scenarios are the recommended entry point.** Engineers don't think in
+hyperparameter grids — they have questions: *does this scale linearly?*,
+*where does adding CPUs stop helping?*, *is algorithm A or B faster at my
+data size?*. A [`Scenario`](mlprof/scenarios/) answers one such question
+directly, planning its own probes and returning a plain-language answer +
+recommendation instead of a raw frontier. The Cartesian sweep + Pareto
+frontier is still available as the lower-level surface (and is itself the
+implementation of the `scaling_with_n` scenario).
+
 ## Status
 
 Early. The core spec/audit/probe/report pipeline works end-to-end (see
@@ -224,6 +233,51 @@ PARETO FRONTIER (cost ↓, f1_macro optimum):
   g5.xlarge   [encoder=distilbert] → cost=$2.31  f1_macro=0.847
 ```
 
+### 5. Or ask a question with a Scenario
+
+Instead of running the full sweep and reading a frontier, point a scenario at
+the same spec and get a direct answer:
+
+```python
+from mlprof.scenarios import (
+    scaling_with_n, parallelization_effect, algorithm_selection,
+)
+
+print(scaling_with_n.run(spec, target="g5.xlarge").format())
+# === scaling_with_n ===
+# Q: Does training time scale linearly with data size N?
+# A: Scales as O(N^1.04) (best fit: power, R²=0.99 over 3 sizes).
+#    Extrapolated full run (N=1,200,000): 2.3h, ~$2.31.
+# → Linear scaling confirmed — full-dataset cost extrapolates predictably.
+
+print(parallelization_effect.run(
+    spec, target="c5.9xlarge", n_cpus=[1, 2, 4, 8, 16, 36]).format())
+# === parallelization_effect ===
+# Q: Where does adding parallel workers stop helping?
+# A: Speedup vs 1 CPUs: 1.0x / 1.6x / 2.3x / 2.9x / 3.4x / 3.7x.
+#    Amdahl P≈0.75 (theoretical ceiling ~4.0x).
+# → Plateaus around 16 CPUs. Beyond that each added worker buys <10% —
+#   pick the instance that gives ~16 CPUs, not the biggest one.
+
+# Compare algorithm variants at a specific data size:
+print(algorithm_selection.run(
+    [spec_agglomerative, spec_lsh], target="g5.8xlarge", n=88_000).format())
+```
+
+Each scenario returns a `ScenarioResult` with `.question`, `.answer`,
+`.recommendation`, `.data` (raw probe results for further analysis), and an
+optional `.passed` gate. Scenarios default to running their probes on **one**
+target over the axis they care about, so they're cheap enough to iterate on —
+run one, read the answer, decide what to run next.
+
+See [`examples/scenario_demo.py`](examples/scenario_demo.py) for a runnable
+end-to-end demo of all three (no ML libraries required).
+
+The baseline scenarios shipping today are `scaling_with_n`,
+`parallelization_effect`, and `algorithm_selection`; the
+[roadmap](#roadmap) tracks the rest of the catalog (`gpu_vs_cpu`,
+`vram_headroom`, `regression_guard`, `cheapest_instance`, ...).
+
 ## How it composes
 
 ```
@@ -348,6 +402,9 @@ register(InstanceSpec(
 - [`examples/probe_demo.py`](examples/probe_demo.py) — full pipeline with
   a synthetic trainable: spec → audit → 18 probes via subprocess → report.
   Requires no ML libraries.
+- [`examples/scenario_demo.py`](examples/scenario_demo.py) — the three
+  baseline scenarios (`scaling_with_n`, `parallelization_effect`,
+  `algorithm_selection`) against a synthetic trainable. No ML libraries.
 - [`examples/fake_trainable.py`](examples/fake_trainable.py) — a
   reference implementation of the user-supplied callables (synthetic).
 - [`examples/agnews/`](examples/agnews) — **realistic demo on the AG News

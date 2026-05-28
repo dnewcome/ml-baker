@@ -14,16 +14,18 @@ from __future__ import annotations
 import json
 import subprocess
 import sys
-import time
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Iterator
+from typing import TYPE_CHECKING, Iterator
 
 from mlprof.probe import ProbeInput, ProbeResult, run_probe
 from mlprof.runtime import resolve_runtime
 from mlprof.spec import ModelSpec
 from mlprof.sweep import expand_sweeps
-from mlprof.targets import resolve
+from mlprof.targets import InstanceSpec, resolve
+
+if TYPE_CHECKING:
+    from mlprof.protocol import RuntimeConfig
 
 
 @dataclass(frozen=True)
@@ -33,6 +35,52 @@ class RunPlan:
 
     def __len__(self) -> int:
         return len(self.probes)
+
+
+def write_spec(spec: ModelSpec, run_dir: Path, *, name: str = "spec") -> Path:
+    """Dump a spec to ``run_dir/<name>.json`` and ensure the probes/ dir exists.
+
+    Returns the spec path. Scenarios that probe multiple specs pass distinct
+    ``name``s so each lands in its own file.
+    """
+    run_dir = Path(run_dir)
+    (run_dir / "probes").mkdir(parents=True, exist_ok=True)
+    spec_path = run_dir / f"{name}.json"
+    spec_path.write_text(spec.model_dump_json(indent=2))
+    return spec_path
+
+
+def make_probe_input(
+    *,
+    spec_path: Path | str,
+    config: dict,
+    instance: InstanceSpec,
+    runtime: "RuntimeConfig",
+    subset_fraction: float,
+    idx: int,
+    run_dir: Path,
+    repetition: int = 0,
+    seed: int | None = None,
+    resume_from: str | None = None,
+) -> ProbeInput:
+    """Build one ``ProbeInput`` with conventional output/result paths.
+
+    The single source of truth for how a probe slot is laid out under
+    ``run_dir`` — used by both ``plan_run`` (the sweep matrix) and the
+    scenarios package (which vary their own axes)."""
+    run_dir = Path(run_dir)
+    return ProbeInput(
+        spec_path=str(spec_path),
+        config=config,
+        instance_type=instance.instance_type,
+        subset_fraction=subset_fraction,
+        repetition=repetition,
+        runtime=asdict(runtime),
+        output_dir=str(run_dir / "probes" / f"probe-{idx:04d}.output"),
+        result_path=str(run_dir / "probes" / f"probe-{idx:04d}.result.json"),
+        seed=seed,
+        resume_from=resume_from,
+    )
 
 
 def plan_run(spec: ModelSpec, run_dir: Path) -> RunPlan:
@@ -49,10 +97,7 @@ def plan_run(spec: ModelSpec, run_dir: Path) -> RunPlan:
             ...
     """
     run_dir = Path(run_dir)
-    (run_dir / "probes").mkdir(parents=True, exist_ok=True)
-
-    spec_path = run_dir / "spec.json"
-    spec_path.write_text(spec.model_dump_json(indent=2))
+    spec_path = write_spec(spec, run_dir)
 
     configs = expand_sweeps(spec)
     probes: list[ProbeInput] = []
@@ -65,17 +110,16 @@ def plan_run(spec: ModelSpec, run_dir: Path) -> RunPlan:
         for config in configs:
             for subset_fraction in spec.probe.subset_fractions:
                 for repetition in range(spec.probe.repetitions):
-                    seed = _probe_seed(spec, idx)
-                    probes.append(ProbeInput(
-                        spec_path=str(spec_path),
+                    probes.append(make_probe_input(
+                        spec_path=spec_path,
                         config=config,
-                        instance_type=instance.instance_type,
+                        instance=instance,
+                        runtime=runtime,
                         subset_fraction=subset_fraction,
+                        idx=idx,
+                        run_dir=run_dir,
                         repetition=repetition,
-                        runtime=asdict(runtime),
-                        output_dir=str(run_dir / "probes" / f"probe-{idx:04d}.output"),
-                        result_path=str(run_dir / "probes" / f"probe-{idx:04d}.result.json"),
-                        seed=seed,
+                        seed=_probe_seed(spec, idx),
                     ))
                     idx += 1
     return RunPlan(probes=probes)
@@ -117,13 +161,33 @@ def run(
     """Plan + execute. ``launcher`` is currently ``"subprocess"`` or
     ``"in_process"``; ``"docker"`` will join the family later."""
     plan = plan_run(spec, run_dir)
-    results: list[ProbeResult] = []
-    for i, probe in enumerate(plan.probes):
-        if progress:
-            _emit_progress(i, len(plan.probes), probe)
-        result = _launch(probe, launcher, timeout=spec.probe.timeout_seconds)
-        results.append(result)
+    results = execute_probes(
+        plan.probes,
+        launcher=launcher,
+        timeout=spec.probe.timeout_seconds,
+        progress=progress,
+    )
     return RunResults(plan=plan, results=results, run_dir=Path(run_dir))
+
+
+def execute_probes(
+    probes: list[ProbeInput],
+    *,
+    launcher: str = "subprocess",
+    timeout: int = 1800,
+    progress: bool = True,
+) -> list[ProbeResult]:
+    """Execute an explicit list of probes and collect their results.
+
+    Decoupled from ``plan_run`` so callers that build their own probe lists
+    (notably the scenarios package, which varies axes other than the sweep
+    matrix) reuse the exact same launcher contract."""
+    results: list[ProbeResult] = []
+    for i, probe in enumerate(probes):
+        if progress:
+            _emit_progress(i, len(probes), probe)
+        results.append(_launch(probe, launcher, timeout=timeout))
+    return results
 
 
 def _launch(probe: ProbeInput, launcher: str, *, timeout: int) -> ProbeResult:
