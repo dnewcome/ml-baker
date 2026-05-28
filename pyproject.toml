@@ -6,11 +6,15 @@ build-backend = "setuptools.build_meta"
 name = "mlprobe"
 version = "0.0.1"
 description = "Profile, audit, and cost-estimate ML training jobs by empirical probing on target infrastructure."
+license = { text = "MIT" }
 requires-python = ">=3.10"
 dependencies = [
     "pydantic>=2.5",
     "psutil>=5.9",
     "numpy>=1.24",
+]
+classifiers = [
+    "License :: OSI Approved :: MIT License",
 ]
 
 [project.optional-dependencies]

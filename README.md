@@ -632,4 +632,4 @@ pre-flight `data_audit`).
 
 ## License
 
-TBD.
+MIT — see [LICENSE](LICENSE).
