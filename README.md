@@ -37,10 +37,20 @@ implementation of the `scaling_with_n` scenario).
 
 ## Status
 
-Early. The core spec/audit/probe/report pipeline works end-to-end (see
-`examples/probe_demo.py`). Probes run locally as subprocesses; Docker /
-SageMaker launchers are on the roadmap. See [open issues](#roadmap) for
-what is planned next.
+Early but capable. The core spec → audit → probe → report pipeline works
+end-to-end (`examples/probe_demo.py`), and on top of it:
+
+- **Scenarios** — question-shaped probes: `scaling_with_n`,
+  `parallelization_effect`, `algorithm_selection`, and the exploration-phase
+  `baseline_compare`.
+- **Library mode** — `mlprof.profile()` to instrument a real training run from
+  the inside, plus `evaluate_existing()` for eval-only against an artifact.
+- **Dataset profiling** — surface data-shape roadblocks (block-size pair
+  explosion, class imbalance, similarity separation, outliers) and a
+  spec-integrated pre-flight `data_audit()`.
+
+Probes run locally as subprocesses; Docker / SageMaker launchers are still on
+the roadmap. See [open issues](#roadmap) for what's next.
 
 ## Installation
 
@@ -567,14 +577,44 @@ register(InstanceSpec(
 
 ## Roadmap
 
-Tracked as open issues:
+**Shipped recently:** scenarios framework
+([#21](https://github.com/dnewcome/mlprof/issues/21)), library mode + eval-only
+([#20](https://github.com/dnewcome/mlprof/issues/20),
+[#18](https://github.com/dnewcome/mlprof/issues/18)), the `baseline_compare`
+exploration scenario ([#19](https://github.com/dnewcome/mlprof/issues/19)), and
+dataset profiling (block-size / class-balance / similarity / outlier + a
+pre-flight `data_audit`).
 
-1. Docker launcher for probes
-2. AWS Pricing API integration for live cost estimates
-3. Saturating power-law fit for quality extrapolation (needs scipy)
-4. Repetition averaging in the report layer
-5. LLM- / hill-climbing-driven sweep expander
-6. Data-sampling tricks for higher-accuracy small-N quality estimates
+**Open** (tracked as issues):
+
+- **Cost** — live AWS pricing ([#2](https://github.com/dnewcome/mlprof/issues/2)),
+  spot-pricing with interruption overhead
+  ([#12](https://github.com/dnewcome/mlprof/issues/12))
+- **Checkpointing / incremental** — passive
+  ([#9](https://github.com/dnewcome/mlprof/issues/9)) and full empirical
+  ([#11](https://github.com/dnewcome/mlprof/issues/11)) verification, chained
+  warm-start probes ([#10](https://github.com/dnewcome/mlprof/issues/10))
+- **Inference / deployment** — inference profiling
+  ([#8](https://github.com/dnewcome/mlprof/issues/8)), model-size measurement
+  ([#15](https://github.com/dnewcome/mlprof/issues/15))
+- **MLflow** — `from_mlflow_run()` read side
+  ([#17](https://github.com/dnewcome/mlprof/issues/17))
+- **Profiling depth** — per-stage GPU util + bottleneck findings
+  ([#13](https://github.com/dnewcome/mlprof/issues/13))
+- **Sampling** — loader-side `subset_strategy` plumbing
+  ([#6](https://github.com/dnewcome/mlprof/issues/6))
+- **Quality gates** — hard pass/fail gate across variants
+  ([#14](https://github.com/dnewcome/mlprof/issues/14)), sub-group gates
+  ([#23](https://github.com/dnewcome/mlprof/issues/23)), subset-fraction guard
+  ([#22](https://github.com/dnewcome/mlprof/issues/22))
+- **Report math** — saturating power-law quality fit
+  ([#3](https://github.com/dnewcome/mlprof/issues/3)), repetition averaging
+  ([#4](https://github.com/dnewcome/mlprof/issues/4))
+- **Infra / spec** — Docker launcher
+  ([#1](https://github.com/dnewcome/mlprof/issues/1); lower priority now that
+  library mode exists), YAML spec loading
+  ([#7](https://github.com/dnewcome/mlprof/issues/7)), sagebaker relationship
+  doc ([#16](https://github.com/dnewcome/mlprof/issues/16))
 
 ## License
 
