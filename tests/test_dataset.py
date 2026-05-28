@@ -12,7 +12,7 @@ from collections import Counter
 import numpy as np
 import pytest
 
-from mlprof import (
+from mlprobe import (
     DatasetProfile,
     DatasetSpec,
     EvalMetric,

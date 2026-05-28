@@ -21,7 +21,7 @@ import math
 import time
 from pathlib import Path
 
-from mlprof import EvalResult, RuntimeConfig, TrainResult
+from mlprobe import EvalResult, RuntimeConfig, TrainResult
 
 
 TOTAL_ROWS = 10_000
@@ -84,7 +84,7 @@ def evaluate_echo(artifact_path, eval_set) -> EvalResult:
 
 def analyze(dataset):
     """A data_audit analyze callable returning a single DatasetProfile."""
-    from mlprof import block_size_profile
+    from mlprobe import block_size_profile
 
     n = dataset["n_rows"]
     return block_size_profile([n // 2, n // 2])
@@ -92,7 +92,7 @@ def analyze(dataset):
 
 def analyze_multi(dataset):
     """A data_audit analyze callable returning multiple DatasetProfiles."""
-    from mlprof import block_size_profile, class_balance_profile
+    from mlprobe import block_size_profile, class_balance_profile
 
     n = dataset["n_rows"]
     return [block_size_profile([n]), class_balance_profile({"pos": n // 2, "neg": n // 2})]

@@ -3,7 +3,7 @@
 No ML libraries, no probes, no subprocesses — this is what you'd add to your
 own training script. Stages are timed individually and rolled up into a
 single-run report. Pass an MLflow run to ``profile(mlflow_run=...)`` to also
-log the metrics (requires ``mlprof[mlflow]``).
+log the metrics (requires ``mlprobe[mlflow]``).
 
     python examples/library_mode_demo.py
 """
@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import time
 
-import mlprof
+import mlprobe
 
 
 def load_data():
@@ -26,7 +26,7 @@ def cluster(data):
 
 
 def main() -> None:
-    with mlprof.profile(name="brand-clustering") as p:
+    with mlprobe.profile(name="brand-clustering") as p:
         with p.stage("load"):
             data = load_data()
         with p.stage("cluster"):

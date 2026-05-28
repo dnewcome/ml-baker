@@ -1,4 +1,4 @@
-"""A synthetic trainable that exercises the full mlprof pipeline without
+"""A synthetic trainable that exercises the full mlprobe pipeline without
 needing any ML library. Use it as a runnable reference for what a real
 user's TrainFn / EvaluateFn / LoadDatasetFn look like.
 
@@ -18,7 +18,7 @@ import math
 import time
 from pathlib import Path
 
-from mlprof import EvalResult, RuntimeConfig, TrainResult
+from mlprobe import EvalResult, RuntimeConfig, TrainResult
 
 
 TOTAL_ROWS = 50_000   # pretend the full dataset has this many rows

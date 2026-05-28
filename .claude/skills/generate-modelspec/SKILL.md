@@ -1,20 +1,20 @@
 ---
 name: generate-modelspec
-description: Analyze a training script, notebook, or MLflow run and generate a mlprof ModelSpec for it, then run audit() and print findings. Use when the user wants to bootstrap a ModelSpec for an existing model without writing it by hand. Triggers on phrases like "generate a mlprof spec", "audit my training code", "make a ModelSpec for this model", or when pointed at a training file / MLflow run with the intent to use mlprof on it.
+description: Analyze a training script, notebook, or MLflow run and generate a mlprobe ModelSpec for it, then run audit() and print findings. Use when the user wants to bootstrap a ModelSpec for an existing model without writing it by hand. Triggers on phrases like "generate a mlprobe spec", "audit my training code", "make a ModelSpec for this model", or when pointed at a training file / MLflow run with the intent to use mlprobe on it.
 ---
 
 # generate-modelspec
 
-Bootstraps a `mlprof.ModelSpec` from existing training code so the user can
+Bootstraps a `mlprobe.ModelSpec` from existing training code so the user can
 run `audit()` on a real model in minutes instead of hand-writing a spec.
 
 ## When to use
 
-- User asks to create / generate / bootstrap a mlprof ModelSpec
+- User asks to create / generate / bootstrap a mlprobe ModelSpec
 - User says "audit my training code" or "make a spec for this model" or
-  "set this model up for mlprof"
+  "set this model up for mlprobe"
 - User points at a training script / notebook / MLflow run and wants to
-  use mlprof on it
+  use mlprobe on it
 
 ## Inputs
 
@@ -116,8 +116,8 @@ can be set in a setup file and used elsewhere.
 
 ### 6. Suggest target instances
 
-Based on framework + cpu_bound, suggest 2–3 targets from the mlprof
-catalog (see `mlprof/targets.py`). Examples:
+Based on framework + cpu_bound, suggest 2–3 targets from the mlprobe
+catalog (see `mlprobe/targets.py`). Examples:
 
 - `cpu_bound=True` → `c5.4xlarge`, `c5.9xlarge`, optionally one GPU
   instance like `g5.xlarge` to demonstrate the `cpu_bound_on_gpu_target`
@@ -146,7 +146,7 @@ Write to the user's current working directory unless they specify
 otherwise. Use this template (fill in fields from your detection):
 
 ```python
-"""mlprof ModelSpec generated from <source path>.
+"""mlprobe ModelSpec generated from <source path>.
 
 This spec was auto-generated. TODO comments mark fields that need human
 verification — read them carefully before running probes. Audit findings
@@ -154,7 +154,7 @@ below this comment block reflect ONLY the declared capabilities; if you
 fix a TODO, re-run the audit.
 """
 
-from mlprof import (
+from mlprobe import (
     Capabilities,
     CategoricalSweep,
     DatasetSpec,
@@ -209,7 +209,7 @@ spec = ModelSpec(
 
 
 if __name__ == "__main__":
-    from mlprof import audit
+    from mlprobe import audit
     print(audit(spec).format())
 ```
 
@@ -225,7 +225,7 @@ supports_checkpointing=False,    # TODO: not detected — look for save_strategy
 After writing the file, run:
 
 ```python
-from mlprof import audit
+from mlprobe import audit
 # reload spec by importing the generated file or constructing inline
 print(audit(spec).format())
 ```
@@ -258,7 +258,7 @@ AUDIT FINDINGS (from the generated spec as-is):
 NEXT:
   1. Resolve the TODOs in model_spec.py
   2. Re-run: python model_spec.py
-  3. If audit looks good, add probe configuration and run: mlprof.run(spec, ...)
+  3. If audit looks good, add probe configuration and run: mlprobe.run(spec, ...)
 ```
 
 ## Hard constraints

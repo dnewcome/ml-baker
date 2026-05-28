@@ -1,4 +1,4 @@
-"""Tests for eval-only mode: mlprof.evaluate_existing (#18).
+"""Tests for eval-only mode: mlprobe.evaluate_existing (#18).
 
 Evaluates an artifact that already exists on disk, with no training run — the
 expensive-training, cheap-re-eval workflow. Uses the synthetic trainable's
@@ -9,8 +9,8 @@ from __future__ import annotations
 
 import json
 
-import mlprof
-from mlprof import (
+import mlprobe
+from mlprobe import (
     Capabilities,
     DatasetSpec,
     EvalMetric,
@@ -39,7 +39,7 @@ def test_evaluate_existing_against_local_artifact(tmp_path):
     spec = _spec()
     artifact = _write_artifact(tmp_path, n_rows=8000, algorithm="accurate")
 
-    result = mlprof.evaluate_existing(spec, artifact)
+    result = mlprobe.evaluate_existing(spec, artifact)
 
     assert "f1" in result.metrics
     assert 0.0 < result.metrics["f1"] <= 0.92
@@ -50,7 +50,7 @@ def test_evaluate_existing_autoloads_eval_set_and_passes_path_type(tmp_path):
     artifact = _write_artifact(tmp_path)
 
     # No eval_set passed → loader is invoked at full size.
-    result = mlprof.evaluate_existing(spec, artifact)
+    result = mlprobe.evaluate_existing(spec, artifact)
 
     assert result.metrics["artifact_is_str"] == 0.0          # local path → Path
     assert result.metrics["eval_set_rows"] == 10_000          # full-size auto-load
@@ -61,7 +61,7 @@ def test_evaluate_existing_passes_uri_through_as_string():
 
     # Remote URI must reach the user's evaluate as a plain string (their loader
     # resolves it); eval_set provided so no file is read.
-    result = mlprof.evaluate_existing(
+    result = mlprobe.evaluate_existing(
         spec, "s3://bucket/path/model.tar.gz", eval_set={"n_rows": 42}
     )
 
@@ -74,6 +74,6 @@ def test_evaluate_existing_uses_explicit_eval_set(tmp_path):
     # Different n_rows in the artifact vs the (ignored) loader proves we used
     # the artifact's content, and that no training ran.
     artifact = _write_artifact(tmp_path, n_rows=500, algorithm="fast")
-    result = mlprof.evaluate_existing(spec, artifact, eval_set={"n_rows": 1})
+    result = mlprobe.evaluate_existing(spec, artifact, eval_set={"n_rows": 1})
     # fast ceiling 0.80; at n=500, 0.40 + 0.05*ln(500) ≈ 0.71 < ceiling.
     assert result.metrics["f1"] < 0.80

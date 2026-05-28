@@ -1,6 +1,6 @@
 """The user-implemented protocol.
 
-mlprof is framework-agnostic. The user implements three callables that
+mlprobe is framework-agnostic. The user implements three callables that
 the runner orchestrates. Everything the runner needs to measure (cost, time,
 memory, GPU utilization) is captured *externally* by the probe layer — the
 user's callables only need to return what they uniquely know (the trained
@@ -47,7 +47,7 @@ class TrainResult:
     peak VRAM, GPU util, cost) are added by the probe runner — the user does
     not need to populate them."""
 
-    artifact_path: Path                            # serialized model, opaque to mlprof
+    artifact_path: Path                            # serialized model, opaque to mlprobe
     metrics: dict[str, float] = field(default_factory=dict)   # loss, train_acc, etc.
     steps_completed: int | None = None             # for incremental-train resumption
     checkpoint_paths: list[Path] = field(default_factory=list)  # if checkpointing on
@@ -71,7 +71,7 @@ class TrainFn(Protocol):
         entries in the spec.
     dataset_subset :
         Whatever ``LoadDatasetFn`` returned for the requested subset fraction.
-        Opaque to mlprof.
+        Opaque to mlprobe.
     output_dir :
         A clean directory the user writes the artifact (and any checkpoints) to.
     resume_from :

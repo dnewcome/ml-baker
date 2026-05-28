@@ -1,4 +1,4 @@
-"""Scenario framework — the question-shaped front end to mlprof.
+"""Scenario framework — the question-shaped front end to mlprobe.
 
 Engineers don't think in Cartesian sweeps; they think in questions about a
 specific model: *does this scale linearly?*, *where does parallelization
@@ -29,11 +29,11 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Iterator, Protocol, runtime_checkable
 
-from mlprof.probe import ProbeResult
-from mlprof.protocol import RuntimeConfig
-from mlprof.runner import execute_probes, make_probe_input, write_spec
-from mlprof.spec import ModelSpec
-from mlprof.targets import InstanceSpec, resolve
+from mlprobe.probe import ProbeResult
+from mlprobe.protocol import RuntimeConfig
+from mlprobe.runner import execute_probes, make_probe_input, write_spec
+from mlprobe.spec import ModelSpec
+from mlprobe.targets import InstanceSpec, resolve
 
 
 @dataclass
@@ -112,7 +112,7 @@ def _run_dir(run_dir: Path | str | None) -> Iterator[Path]:
         path.mkdir(parents=True, exist_ok=True)
         yield path
         return
-    tmp = tempfile.mkdtemp(prefix="mlprof-scenario-")
+    tmp = tempfile.mkdtemp(prefix="mlprobe-scenario-")
     try:
         yield Path(tmp)
     finally:

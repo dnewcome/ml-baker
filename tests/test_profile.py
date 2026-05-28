@@ -10,8 +10,8 @@ import time
 
 import pytest
 
-import mlprof
-from mlprof import (
+import mlprobe
+from mlprobe import (
     Capabilities,
     DatasetSpec,
     EvalMetric,
@@ -26,7 +26,7 @@ from mlprof import (
 # ---- measure() as the public primitive ------------------------------------
 
 def test_measure_times_a_block():
-    with mlprof.measure() as m:
+    with mlprobe.measure() as m:
         time.sleep(0.05)
     assert m.wall_clock_s >= 0.04
     assert m.peak_rss_mb > 0
@@ -35,7 +35,7 @@ def test_measure_times_a_block():
 # ---- profile(): stages + report -------------------------------------------
 
 def test_profile_captures_overall_and_stages():
-    with mlprof.profile(name="job") as p:
+    with mlprobe.profile(name="job") as p:
         with p.stage("load"):
             time.sleep(0.05)
         with p.stage("train"):
@@ -58,7 +58,7 @@ def test_profile_captures_overall_and_stages():
 
 
 def test_profile_report_unavailable_before_exit():
-    with mlprof.profile(name="job") as p:
+    with mlprobe.profile(name="job") as p:
         with pytest.raises(RuntimeError):
             p.report()
 
@@ -83,13 +83,13 @@ def _gpu_required_cpu_target_spec() -> ModelSpec:
 def test_profile_raises_on_blocker_when_requested():
     spec = _gpu_required_cpu_target_spec()
     with pytest.raises(IncompatibleSpecError):
-        with mlprof.profile(spec=spec, on_blocker="raise"):
+        with mlprobe.profile(spec=spec, on_blocker="raise"):
             pass  # body should never run
 
 
 def test_profile_attaches_audit_and_warns_by_default(capsys):
     spec = _gpu_required_cpu_target_spec()
-    with mlprof.profile(spec=spec) as p:  # on_blocker defaults to "warn"
+    with mlprobe.profile(spec=spec) as p:  # on_blocker defaults to "warn"
         pass
     report = p.report()
     assert report.audit is not None
@@ -114,7 +114,7 @@ def test_profile_mlflow_run_without_mlflow_warns(monkeypatch):
 
     sentinel = object()  # stand-in for an mlflow Run
     with pytest.warns(UserWarning, match="mlflow"):
-        with mlprof.profile(name="job", mlflow_run=sentinel) as p:
+        with mlprobe.profile(name="job", mlflow_run=sentinel) as p:
             time.sleep(0.01)
     # Report is still produced despite the logging no-op.
     assert p.report().wall_clock_s >= 0.0

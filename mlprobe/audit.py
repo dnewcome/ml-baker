@@ -17,9 +17,9 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Literal
 
-from mlprof.runtime import resolve_runtime
-from mlprof.spec import ModelSpec
-from mlprof.targets import InstanceSpec, resolve
+from mlprobe.runtime import resolve_runtime
+from mlprobe.spec import ModelSpec
+from mlprobe.targets import InstanceSpec, resolve
 
 
 Severity = Literal["incompatible", "warning", "info"]

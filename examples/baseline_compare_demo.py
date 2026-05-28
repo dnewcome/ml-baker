@@ -11,7 +11,7 @@ to_vector() accepts from real EvalResult / ProfileReport objects.
 
 from __future__ import annotations
 
-from mlprof.scenarios import baseline_compare
+from mlprobe.scenarios import baseline_compare
 
 
 def main() -> None:

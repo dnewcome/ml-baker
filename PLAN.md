@@ -1,26 +1,26 @@
 # PLAN — open design decisions
 
 Captured 2026-05-20 from a strategic discussion that surfaced three
-decisions about mlprof's direction. The current code is at a clean
+decisions about mlprobe's direction. The current code is at a clean
 landing point; these decisions shape what gets built next. Read this
 when fresh, then decide.
 
 ## What triggered this
 
-I tried to use mlprof on a real model and hit friction:
+I tried to use mlprobe on a real model and hit friction:
 
 - **Dependency wall** — `train_callable: "my_co.training:train"` requires the
   whole work codebase + its deps to be importable in the same Python env
-  as mlprof. For a complex production model that's often impractical.
+  as mlprobe. For a complex production model that's often impractical.
 - **Two-env reality** — many ML projects have a local dev venv (Mac ARM,
   IDE-only deps) AND a Docker training image (Linux + CUDA + full deps).
-  mlprof's docs assume one env; reality has two.
+  mlprobe's docs assume one env; reality has two.
 - **MLflow is the system of record** — at MLflow shops, every training
   run already has structured params, metrics, tags, and artifacts logged.
-  The "framework-agnostic" framing makes mlprof ignore all of that and
+  The "framework-agnostic" framing makes mlprobe ignore all of that and
   re-derive it from code grep, which is doing more work for less value.
 
-In parallel, a separate realization: mlprof's primitives (`measure()`,
+In parallel, a separate realization: mlprobe's primitives (`measure()`,
 `audit()`, capability detection) are useful *during* a real training run,
 not just for external probes that predict before commitment. This was
 never the framing; it's a meaningful expansion.
@@ -29,21 +29,21 @@ never the framing; it's a meaningful expansion.
 
 1. **The dependency problem doesn't have one fix.** Three modes coexist:
    - Audit-only from any env (works today; doesn't need to import user code)
-   - Probes inside the training env (install mlprof into your training venv/container)
-   - Probes orchestrated externally via Docker (issue [#1](https://github.com/dnewcome/mlprof/issues/1), longer-term)
+   - Probes inside the training env (install mlprobe into your training venv/container)
+   - Probes orchestrated externally via Docker (issue [#1](https://github.com/dnewcome/mlprobe/issues/1), longer-term)
 
 2. **The agnostic protocol cost almost nothing to build but pays nothing
    without users who actually need it.** The user (you) is at an MLflow
-   shop. The "shops that need mlprof but aren't on MLflow" user is
+   shop. The "shops that need mlprobe but aren't on MLflow" user is
    hypothetical.
 
-3. **Library mode sidesteps the dependency problem entirely.** If mlprof
+3. **Library mode sidesteps the dependency problem entirely.** If mlprobe
    is `import`ed inside the actual training script, you're already in the
    right env. No coordination needed.
 
 4. **Logging probe predictions + library-mode measurements back to MLflow
    creates a predicted-vs-actual feedback loop.** This is the killer
-   integration — mlprof's accuracy becomes measurable and queryable in
+   integration — mlprobe's accuracy becomes measurable and queryable in
    the MLflow UI. That's how a tool stops being hand-wavey and starts
    being trusted.
 
@@ -107,20 +107,20 @@ News demo stays as the "manual mode" reference.
 
 ### Options
 
-- **A. Probe-only (status quo).** mlprof is an external tool that
+- **A. Probe-only (status quo).** mlprobe is an external tool that
   predicts before training runs. Pros: clear product identity; clean
   abstractions. Cons: hits the dependency wall; doesn't help during real
   training runs you're already paying for; users want both.
 
 - **B. Probe mode + library mode (RECOMMENDED).** Promote `measure()`,
-  `audit()`, and a new `mlprof.profile()` context manager to public API.
+  `audit()`, and a new `mlprobe.profile()` context manager to public API.
   Users can either run probes ahead of time (existing mode) OR
   instrument their actual training (new mode). Pros: sidesteps the dep
   problem; library mode is what most people will reach for first; same
   primitives serve both. Cons: docs surface roughly doubles; need to
   explain when to use which.
 
-- **C. Library-only.** Drop the probe orchestration; mlprof becomes
+- **C. Library-only.** Drop the probe orchestration; mlprobe becomes
   pure instrumentation. Pros: massively simpler. Cons: throws away the
   scaling extrapolation + Pareto frontier work, which is the original
   value prop.
@@ -130,7 +130,7 @@ News demo stays as the "manual mode" reference.
 **B.** Add library mode as a second front door without removing the
 first. The two modes share ~80% of the code (measure, audit, report
 formatting) — the new surface is mostly a single
-`with mlprof.profile(spec=...) as p: ...` context manager and a
+`with mlprobe.profile(spec=...) as p: ...` context manager and a
 single-run report shape that skips the scaling fits.
 
 ### What changes if you go B
@@ -138,11 +138,11 @@ single-run report shape that skips the scaling fits.
 - Two new issues to file:
   1. Promote `measure()` and `audit()` to public API + library-mode
      docs (small, mostly documentation, days)
-  2. Add `mlprof.profile()` top-level context manager for single-run
+  2. Add `mlprobe.profile()` top-level context manager for single-run
      reports (real feature work, ~1 week)
 - README adds a second-quickstart section showing library-mode usage
   inside a training script.
-- Stage profiling ([#13](https://github.com/dnewcome/mlprof/issues/13))
+- Stage profiling ([#13](https://github.com/dnewcome/mlprobe/issues/13))
   becomes much more valuable — in library mode it measures the actual
   production run's bottlenecks, not extrapolations.
 
@@ -150,7 +150,7 @@ single-run report shape that skips the scaling fits.
 
 ### Options
 
-- **A. Thin integration** (status quo of issue [#17](https://github.com/dnewcome/mlprof/issues/17)).
+- **A. Thin integration** (status quo of issue [#17](https://github.com/dnewcome/mlprobe/issues/17)).
   `from_mlflow_run(run_id) -> ModelSpec` and
   `log_results_to_mlflow(report)` as two helper functions. Pros: small,
   contained, optional dep. Cons: doesn't fully exploit what MLflow
@@ -161,20 +161,20 @@ single-run report shape that skips the scaling fits.
   - `log_predictions()` — predicted cost/time/memory/quality as metrics
   - `log_audit_findings()` — finding codes as tags, full audit as artifact
   - `log_stage_profile()` — per-stage timings as metrics (library mode)
-  - `with mlprof.profile(mlflow_run=...)` — context manager that does all
+  - `with mlprobe.profile(mlflow_run=...)` — context manager that does all
     of it automatically inside a training script
   - Pre-flight audit gate that can `raise` and fail the MLflow run with
     a clear blocker reason visible in the UI
   - Predicted-vs-actual comparison built in (when both predicted and
     actual cost end up on the same run, expose the delta as a tag)
 
-  Pros: mlprof becomes native to the MLflow UI; every value the tool
+  Pros: mlprobe becomes native to the MLflow UI; every value the tool
   produces is visible where users already live; predicted-vs-actual
   feedback loop makes the tool self-validating. Cons: more surface to
   maintain; more places MLflow changes can break us.
 
 - **C. MLflow under the hood, no user-visible MLflow APIs.** Users still
-  write specs; mlprof transparently logs to MLflow if it's configured.
+  write specs; mlprobe transparently logs to MLflow if it's configured.
   Pros: zero user effort. Cons: surprising magic; hard to debug; the
   user is best served seeing the integration explicitly.
 
@@ -182,13 +182,13 @@ single-run report shape that skips the scaling fits.
 
 **B.** The predicted-vs-actual feedback loop alone is worth the surface
 area. The other primitives compose nicely with library mode (decision 2)
-— `mlprof.profile(mlflow_run=...)` is the unified entry point that uses
+— `mlprobe.profile(mlflow_run=...)` is the unified entry point that uses
 all of them under the hood, so users don't have to call each one
 themselves.
 
 ### What changes if you go B
 
-- Issue [#17](https://github.com/dnewcome/mlprof/issues/17) grows
+- Issue [#17](https://github.com/dnewcome/mlprobe/issues/17) grows
   significantly — should be re-scoped or replaced with a richer issue
   (or split into 3-4: read-side, write-side, library-mode integration,
   pre-flight gate).
@@ -204,7 +204,7 @@ themselves.
 ### Options
 
 - **A. Sweep-and-Pareto (status quo).** Users declare hyperparameter
-  sweeps (NumericSweep / CategoricalSweep) and target lists; mlprof runs
+  sweeps (NumericSweep / CategoricalSweep) and target lists; mlprobe runs
   the Cartesian product and reports the Pareto frontier. Pros: clean,
   fully built. Cons: doesn't match how engineers actually think — they
   have questions ("does this scale linearly?", "where does
@@ -218,7 +218,7 @@ themselves.
   (``scaling_with_n``) among many.
 
   ```python
-  from mlprof.scenarios import scaling_with_n, parallelization_effect, cheapest_instance
+  from mlprobe.scenarios import scaling_with_n, parallelization_effect, cheapest_instance
 
   scaling_with_n.run(spec, target="g5.xlarge")
   # → "Scales as O(N^1.04). R²=0.99 on 5 subset sizes. Likely linear."
@@ -260,16 +260,16 @@ plan their probes and analyze results differently.
 | ``cheapest_instance`` | Lowest-cost target that meets a wall-clock budget |
 | ``vram_headroom`` | Largest batch size that fits in target VRAM |
 | ``mixed_precision_payoff`` | What does fp16/bf16 buy us in time / cost / quality? |
-| ``stage_bottleneck`` | Which stage dominates wall-clock? CPU- or GPU-bound? (becomes the user-facing surface for [#13](https://github.com/dnewcome/mlprof/issues/13)) |
-| ``regression_guard`` | Did this perf optimization keep quality? (the user-facing surface for [#14](https://github.com/dnewcome/mlprof/issues/14)) |
-| ``checkpoint_robustness`` | Does the checkpointing actually work mid-training? (the user-facing surface for [#9](https://github.com/dnewcome/mlprof/issues/9) / [#11](https://github.com/dnewcome/mlprof/issues/11)) |
-| ``incremental_amortization`` | How much cheaper is warm-start vs from-scratch? (the user-facing surface for [#10](https://github.com/dnewcome/mlprof/issues/10)) |
-| ``spot_savings`` | What does spot pricing save with my checkpointing setup? (the user-facing surface for [#12](https://github.com/dnewcome/mlprof/issues/12)) |
-| ``deployment_readiness`` | Combined: model size + inference VRAM + cold-load time (combines [#8](https://github.com/dnewcome/mlprof/issues/8) + [#15](https://github.com/dnewcome/mlprof/issues/15)) |
+| ``stage_bottleneck`` | Which stage dominates wall-clock? CPU- or GPU-bound? (becomes the user-facing surface for [#13](https://github.com/dnewcome/mlprobe/issues/13)) |
+| ``regression_guard`` | Did this perf optimization keep quality? (the user-facing surface for [#14](https://github.com/dnewcome/mlprobe/issues/14)) |
+| ``checkpoint_robustness`` | Does the checkpointing actually work mid-training? (the user-facing surface for [#9](https://github.com/dnewcome/mlprobe/issues/9) / [#11](https://github.com/dnewcome/mlprobe/issues/11)) |
+| ``incremental_amortization`` | How much cheaper is warm-start vs from-scratch? (the user-facing surface for [#10](https://github.com/dnewcome/mlprobe/issues/10)) |
+| ``spot_savings`` | What does spot pricing save with my checkpointing setup? (the user-facing surface for [#12](https://github.com/dnewcome/mlprobe/issues/12)) |
+| ``deployment_readiness`` | Combined: model size + inference VRAM + cold-load time (combines [#8](https://github.com/dnewcome/mlprobe/issues/8) + [#15](https://github.com/dnewcome/mlprobe/issues/15)) |
 
 ### What changes if you go B
 
-- New ``mlprof/scenarios/`` package with a ``Scenario`` protocol
+- New ``mlprobe/scenarios/`` package with a ``Scenario`` protocol
   defining ``run(...)`` and a ``Result`` shape.
 - Existing sweep + Pareto code stays — it becomes the implementation
   of ``scaling_with_n`` and a generic ``hyperparameter_sweep`` scenario
@@ -288,30 +288,30 @@ plan their probes and analyze results differently.
 
 If you go B/B/B above:
 
-| Scenario | mlprof workflow |
+| Scenario | mlprobe workflow |
 |---|---|
-| Local Mac dev only, no training here | Install mlprof in dev venv; write spec by hand or via skill; run `audit()` only |
-| Single venv with model deps + mlprof | `pip install mlprof[mlflow]`; do everything (probes, library mode, MLflow logging) |
-| Docker training image | Add `mlprof[mlflow]` to image deps; use library mode inside the container; predictions log to the same MLflow run |
+| Local Mac dev only, no training here | Install mlprobe in dev venv; write spec by hand or via skill; run `audit()` only |
+| Single venv with model deps + mlprobe | `pip install mlprobe[mlflow]`; do everything (probes, library mode, MLflow logging) |
+| Docker training image | Add `mlprobe[mlflow]` to image deps; use library mode inside the container; predictions log to the same MLflow run |
 | Two-env (Mac dev + Docker training) | Dev venv: audit-only against MLflow runs. Container: library mode + MLflow logging. Best of both. |
 
-The dependency wall disappears for most users because mlprof gets
+The dependency wall disappears for most users because mlprobe gets
 installed alongside the existing training env (whichever env that is),
 not into its own isolated venv.
 
 ## What's already filed vs. what would need filing
 
 ### Already filed (relevant to these decisions)
-- [#1](https://github.com/dnewcome/mlprof/issues/1) Docker launcher — still relevant, less central if library mode wins
-- [#7](https://github.com/dnewcome/mlprof/issues/7) YAML spec loading — orthogonal, still useful
-- [#13](https://github.com/dnewcome/mlprof/issues/13) Stage-level profiling — *becomes the highest-value issue* in library mode
-- [#15](https://github.com/dnewcome/mlprof/issues/15) Model size — orthogonal, still useful
-- [#16](https://github.com/dnewcome/mlprof/issues/16) sagebaker ↔ mlprof relationship — needs minor update if mlprof goes MLflow-first
-- [#17](https://github.com/dnewcome/mlprof/issues/17) MLflow integration — needs to be re-scoped or split if decision 3 lands on B
+- [#1](https://github.com/dnewcome/mlprobe/issues/1) Docker launcher — still relevant, less central if library mode wins
+- [#7](https://github.com/dnewcome/mlprobe/issues/7) YAML spec loading — orthogonal, still useful
+- [#13](https://github.com/dnewcome/mlprobe/issues/13) Stage-level profiling — *becomes the highest-value issue* in library mode
+- [#15](https://github.com/dnewcome/mlprobe/issues/15) Model size — orthogonal, still useful
+- [#16](https://github.com/dnewcome/mlprobe/issues/16) sagebaker ↔ mlprobe relationship — needs minor update if mlprobe goes MLflow-first
+- [#17](https://github.com/dnewcome/mlprobe/issues/17) MLflow integration — needs to be re-scoped or split if decision 3 lands on B
 
 ### Would need filing if B/B/B/B
 - Library mode v1: promote `measure()`/`audit()` to public API + docs
-- Library mode v2: `mlprof.profile()` top-level context manager
+- Library mode v2: `mlprobe.profile()` top-level context manager
 - Pre-flight audit gate (capability to `raise` on incompatibilities)
 - Predicted-vs-actual feedback loop as an explicit feature
 - README rewrite for MLflow-first + scenarios-first framing
@@ -348,9 +348,9 @@ issues + the scenario catalog issues, then implement in this order:
    before investing more.
 4. **`from_mlflow_run()` helper** (cuts skill complexity, removes the
    biggest manual-spec friction)
-5. **`mlprof.profile()` context + MLflow logging** (the unified entry
+5. **`mlprobe.profile()` context + MLflow logging** (the unified entry
    point users will actually use; scenarios run inside it)
-6. **Stage profiling [#13](https://github.com/dnewcome/mlprof/issues/13)** —
+6. **Stage profiling [#13](https://github.com/dnewcome/mlprobe/issues/13)** —
    becomes the measurement primitive for the `stage_bottleneck` scenario
 7. **More scenarios as needed** based on real-world use — `gpu_vs_cpu`,
    `vram_headroom`, `mixed_precision_payoff`, etc.
@@ -368,7 +368,7 @@ the discussion's eventual shape.
   MLflow yourself, leaving the agnostic path means contributors with
   W&B / Neptune / homegrown trackers can extend later.
 - **Library-only (C on decision 2)** — the scaling extrapolation + Pareto
-  frontier IS the original value prop. Probe mode is what makes mlprof a
+  frontier IS the original value prop. Probe mode is what makes mlprobe a
   planning tool, not just a measurement library.
 - **Magic MLflow (C on decision 3)** — implicit cross-cutting integrations
   are hard to debug when they break. Users are best served by explicit
@@ -389,7 +389,7 @@ the discussion's eventual shape.
 - Whether the project needs a separate website / hosted docs. Not now;
   README + per-issue specs are enough.
 - What to do about sagebaker integration beyond
-  [#16](https://github.com/dnewcome/mlprof/issues/16). The
+  [#16](https://github.com/dnewcome/mlprobe/issues/16). The
   `from_sagebaker_plugin()` adapter remains optional.
 - The exact catalog of scenarios. The table in Decision 4 is a
   starter set, not exhaustive. New scenarios will come up from real

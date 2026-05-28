@@ -124,7 +124,7 @@ def resolve(instance_type: str) -> InstanceSpec:
     if key not in _CATALOG:
         raise KeyError(
             f"Unknown instance type {instance_type!r}. "
-            f"Known: {sorted(_CATALOG)} (or add it to mlprof.targets._CATALOG)."
+            f"Known: {sorted(_CATALOG)} (or add it to mlprobe.targets._CATALOG)."
         )
     return _CATALOG[key]
 

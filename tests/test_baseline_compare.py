@@ -9,14 +9,14 @@ from __future__ import annotations
 
 import pytest
 
-from mlprof import (
+from mlprobe import (
     DatasetSpec,
     EvalMetric,
     ModelSpec,
     ProfileReport,
 )
-from mlprof.protocol import EvalResult
-from mlprof.scenarios import Baseline, baseline_compare, to_vector
+from mlprobe.protocol import EvalResult
+from mlprobe.scenarios import Baseline, baseline_compare, to_vector
 
 
 def _spec() -> ModelSpec:

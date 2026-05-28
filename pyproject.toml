@@ -3,7 +3,7 @@ requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "mlprof"
+name = "mlprobe"
 version = "0.0.1"
 description = "Profile, audit, and cost-estimate ML training jobs by empirical probing on target infrastructure."
 requires-python = ">=3.10"
@@ -27,4 +27,4 @@ demo = [
 ]
 
 [tool.setuptools.packages.find]
-include = ["mlprof*"]
+include = ["mlprobe*"]

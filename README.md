@@ -1,13 +1,13 @@
-# mlprof
+# mlprobe
 
 > Estimate the cost, time, and quality of an ML training run *before* you
 > commit to it — and audit the training code for production-readiness while
 > you're at it.
 
-mlprof is a framework-agnostic profiler for ML training workloads. You
+mlprobe is a framework-agnostic profiler for ML training workloads. You
 describe your model (libraries used, hyperparameters, eval metrics,
 candidate target instances), point at your `train()` / `evaluate()` /
-`load_dataset()` functions, and mlprof:
+`load_dataset()` functions, and mlprobe:
 
 1. **Audits** the code's production-readiness — calls out missing
    checkpointing, single-process data loading, idle GPUs on multi-GPU
@@ -23,13 +23,13 @@ candidate target instances), point at your `train()` / `evaluate()` /
    explicit, not buried in raw numbers.
 
 It is **framework-agnostic** by design — you can use PyTorch, spaCy,
-sklearn, HuggingFace, or anything else. mlprof never imports your
-framework; you implement three small callables and mlprof orchestrates.
+sklearn, HuggingFace, or anything else. mlprobe never imports your
+framework; you implement three small callables and mlprobe orchestrates.
 
 **Scenarios are the recommended entry point.** Engineers don't think in
 hyperparameter grids — they have questions: *does this scale linearly?*,
 *where does adding CPUs stop helping?*, *is algorithm A or B faster at my
-data size?*. A [`Scenario`](mlprof/scenarios/) answers one such question
+data size?*. A [`Scenario`](mlprobe/scenarios/) answers one such question
 directly, planning its own probes and returning a plain-language answer +
 recommendation instead of a raw frontier. The Cartesian sweep + Pareto
 frontier is still available as the lower-level surface (and is itself the
@@ -43,7 +43,7 @@ end-to-end (`examples/probe_demo.py`), and on top of it:
 - **Scenarios** — question-shaped probes: `scaling_with_n`,
   `parallelization_effect`, `algorithm_selection`, and the exploration-phase
   `baseline_compare`.
-- **Library mode** — `mlprof.profile()` to instrument a real training run from
+- **Library mode** — `mlprobe.profile()` to instrument a real training run from
   the inside, plus `evaluate_existing()` for eval-only against an artifact.
 - **Dataset profiling** — surface data-shape roadblocks (block-size pair
   explosion, class imbalance, similarity separation, outliers) and a
@@ -55,8 +55,8 @@ the roadmap. See [open issues](#roadmap) for what's next.
 ## Installation
 
 ```bash
-git clone https://github.com/dnewcome/mlprof.git
-cd mlprof
+git clone https://github.com/dnewcome/mlprobe.git
+cd mlprobe
 pip install -e .
 ```
 
@@ -83,24 +83,24 @@ SageMaker, with a half-dozen possible instance types ranging from
 - Is the code production-ready (checkpointing, incremental training,
   deterministic, parallel data loading)?
 
-mlprof answers these by combining a declarative audit (cheap) with
+mlprobe answers these by combining a declarative audit (cheap) with
 empirical small-scale probes (cheap-ish) and extrapolation.
 
 ## Quickstart
 
 ### 1. Implement three callables
 
-mlprof calls these. You implement them however you like.
+mlprobe calls these. You implement them however you like.
 
 ```python
 # my_project/training.py
 from pathlib import Path
-from mlprof import TrainResult, EvalResult, RuntimeConfig
+from mlprobe import TrainResult, EvalResult, RuntimeConfig
 
 
 def load(subset_fraction: float = 1.0, split: str | None = None,
          seed: int | None = None):
-    """Return a dataset (or a subset). Opaque to mlprof."""
+    """Return a dataset (or a subset). Opaque to mlprobe."""
     ...
 
 
@@ -126,7 +126,7 @@ def evaluate(artifact_path: Path, eval_set) -> EvalResult:
 ### 2. Write a `ModelSpec`
 
 ```python
-from mlprof import (
+from mlprobe import (
     ModelSpec, DatasetSpec, EvalMetric, HyperParam,
     Capabilities, FrameworkHints, TargetInstance, ProbeConfig,
     NumericSweep, CategoricalSweep,
@@ -184,7 +184,7 @@ spec = ModelSpec(
 ### 3. Audit (no compute spent)
 
 ```python
-from mlprof import audit
+from mlprobe import audit
 
 report = audit(spec)
 print(report.format())
@@ -215,7 +215,7 @@ INFO (4):
 ### 4. Probe and report
 
 ```python
-from mlprof import audit, build_report, run
+from mlprobe import audit, build_report, run
 
 with tempfile.TemporaryDirectory() as td:
     results = run(spec, run_dir=td, launcher="subprocess")
@@ -249,7 +249,7 @@ Instead of running the full sweep and reading a frontier, point a scenario at
 the same spec and get a direct answer:
 
 ```python
-from mlprof.scenarios import (
+from mlprobe.scenarios import (
     scaling_with_n, parallelization_effect, algorithm_selection,
 )
 
@@ -274,7 +274,7 @@ print(algorithm_selection.run(
     [spec_agglomerative, spec_lsh], target="g5.8xlarge", n=88_000).format())
 
 # Judge a candidate against a baseline you converge on as you probe:
-from mlprof.scenarios import baseline_compare
+from mlprobe.scenarios import baseline_compare
 
 r = baseline_compare.run(naive_result)                 # establishes the baseline
 base = r.data["baseline"]
@@ -307,10 +307,10 @@ The baseline scenarios shipping today are `scaling_with_n`,
 
 ## Library mode — instrument a real training run
 
-Everything above is *probe mode*: mlprof predicts cost/time/memory before you
+Everything above is *probe mode*: mlprobe predicts cost/time/memory before you
 commit by running small external probes. That requires your training code to
-be importable in mlprof's environment, which is awkward for complex production
-models. **Library mode** sidesteps it — you `import mlprof` *inside* the
+be importable in mlprobe's environment, which is awkward for complex production
+models. **Library mode** sidesteps it — you `import mlprobe` *inside* the
 training script you're already running, so you're already in the right env,
 with the right data, on the right hardware. The measurements are of the real
 run, not an extrapolation.
@@ -318,9 +318,9 @@ run, not an extrapolation.
 The low-level primitive is `measure()` (already public) for timing one block:
 
 ```python
-import mlprof
+import mlprobe
 
-with mlprof.measure() as m:
+with mlprobe.measure() as m:
     labels = run_agglomerative(distances, threshold)
 
 print(m.wall_clock_s, m.peak_rss_mb)   # also peak_vram_mb / gpu_util_avg with [gpu]
@@ -332,7 +332,7 @@ captures per-stage timings, builds a single-run report, and — given an MLflow
 run — logs all of it there:
 
 ```python
-with mlprof.profile(spec=spec, mlflow_run=mlflow.active_run(),
+with mlprobe.profile(spec=spec, mlflow_run=mlflow.active_run(),
                     on_blocker="raise") as p:
     with p.stage("load"):
         data = load_everything()
@@ -349,7 +349,7 @@ print(p.report().format())
 #   (unstaged)                  0.3m  ( 0.7%)
 ```
 
-MLflow logging is optional (`pip install 'mlprof[mlflow]'`); without it, a
+MLflow logging is optional (`pip install 'mlprobe[mlflow]'`); without it, a
 passed `mlflow_run` is ignored with a warning and the report is still built.
 The single-run report intentionally omits the scaling fits and Pareto frontier
 — those need multiple data sizes, which a single real run doesn't have (use a
@@ -363,7 +363,7 @@ configurations — without paying to retrain. `evaluate_existing()` runs just th
 `evaluate()` step against an existing artifact:
 
 ```python
-result = mlprof.evaluate_existing(
+result = mlprobe.evaluate_existing(
     spec,
     "s3://my-bucket/run-123/model.tar.gz",   # local Path or remote URI
     # eval_set=...  # optional; auto-loaded via LoadDatasetFn(split=eval_split) if omitted
@@ -378,7 +378,7 @@ Runs in-process, so call it where your `evaluate_callable` is importable.
 
 ## Dataset profiling — spot roadblocks before you train
 
-mlprof is data-blind by design, but the *shape* of the training set often
+mlprobe is data-blind by design, but the *shape* of the training set often
 predicts trouble — and some of it is computable cheaply, with no training run.
 The clearest case is **block sizes**: blocked / all-pairs-within-group methods
 (dedup, blocked clustering, entity resolution) do work proportional to
@@ -386,12 +386,12 @@ The clearest case is **block sizes**: blocked / all-pairs-within-group methods
 cluster) dominates wall-clock. That's an O(n) group-by away — you don't need to
 discover it by crashing a full run.
 
-You supply the block sizes (you own the blocking key); mlprof does the reusable
+You supply the block sizes (you own the blocking key); mlprobe does the reusable
 pair-cost analysis and surfaces the roadblock as **neutral facts** — it tells
 you *where the cost is*, not which algorithm to use (that decision is yours):
 
 ```python
-from mlprof import block_size_profile
+from mlprobe import block_size_profile
 
 profile = block_size_profile(df.groupby("blocking_key").size().to_dict())
 print(profile.format())
@@ -412,7 +412,7 @@ applies across a small family of profilers (see
 |---|---|
 | `block_size_profile` | pair-explosion cost of blocked/all-pairs methods (`Σ C(size,2)`) |
 | `class_balance_profile` | imbalance ratio, entropy, and the small-class floor that limits how far you can subsample |
-| `stratified_plan` | per-group draw counts for a representative subsample (mlprof computes the plan; your loader draws it) |
+| `stratified_plan` | per-group draw counts for a representative subsample (mlprobe computes the plan; your loader draws it) |
 | `similarity_profile` | distribution of pairwise similarities — clean separation vs a blur where FP/FN concentrate (Sarle bimodality coefficient) |
 | `outlier_profile` | IQR/σ outlier fractions and tail heaviness |
 
@@ -422,8 +422,8 @@ static capability `audit(spec)` — set `DatasetSpec.analyze_callable` to a
 function returning profiles, and call `data_audit(spec)` before probing:
 
 ```python
-profiles = mlprof.data_audit(spec)        # runs your analyze() over cheaply-loaded data
-print(mlprof.format_data_audit(profiles)) # neutral shape facts, no training spent
+profiles = mlprobe.data_audit(spec)        # runs your analyze() over cheaply-loaded data
+print(mlprobe.format_data_audit(profiles)) # neutral shape facts, no training spent
 ```
 
 ## How it composes
@@ -463,7 +463,7 @@ User callables ───────────┐        ▼
 
 ### Key design choices
 
-- **Framework-agnostic.** mlprof never imports your training framework.
+- **Framework-agnostic.** mlprobe never imports your training framework.
   It calls user-supplied callables referenced by dotted-path string. The
   audit can run without even importing them.
 - **External measurement.** Wall-clock, RAM, VRAM, and GPU utilization are
@@ -486,7 +486,7 @@ User callables ───────────┐        ▼
 
 ## The user-implemented protocol
 
-Three callables. Full signatures in [`mlprof/protocol.py`](mlprof/protocol.py).
+Three callables. Full signatures in [`mlprobe/protocol.py`](mlprobe/protocol.py).
 
 ```python
 class LoadDatasetFn(Protocol):
@@ -518,7 +518,7 @@ class RuntimeConfig:
 
 ## Target catalog
 
-[`mlprof/targets.py`](mlprof/targets.py) ships with ~16 common AWS
+[`mlprobe/targets.py`](mlprobe/targets.py) ships with ~16 common AWS
 instance types covering CPU (`c5`, `c6i`, `m5`), T4 (`g4dn`), A10G (`g5`),
 V100 (`p3`), A100 (`p4d`, `p4de`), and H100 (`p5`). Both EC2 names
 (`g5.xlarge`) and SageMaker names (`ml.g5.xlarge`) resolve to the same
@@ -531,7 +531,7 @@ are stamped with `PRICE_AS_OF` so it is obvious when they need refreshing.
 Add your own:
 
 ```python
-from mlprof.targets import InstanceSpec, GpuSpec, register
+from mlprobe.targets import InstanceSpec, GpuSpec, register
 
 register(InstanceSpec(
     instance_type="g5.24xlarge",
@@ -554,7 +554,7 @@ register(InstanceSpec(
   baseline scenarios (`scaling_with_n`, `parallelization_effect`,
   `algorithm_selection`) against a synthetic trainable. No ML libraries.
 - [`examples/library_mode_demo.py`](examples/library_mode_demo.py) —
-  library mode: `mlprof.profile()` instrumenting a run from the inside with
+  library mode: `mlprobe.profile()` instrumenting a run from the inside with
   per-stage timings. No ML libraries.
 - [`examples/baseline_compare_demo.py`](examples/baseline_compare_demo.py) —
   converging on a baseline across a probing session: establish → tradeoff →
@@ -578,43 +578,43 @@ register(InstanceSpec(
 ## Roadmap
 
 **Shipped recently:** scenarios framework
-([#21](https://github.com/dnewcome/mlprof/issues/21)), library mode + eval-only
-([#20](https://github.com/dnewcome/mlprof/issues/20),
-[#18](https://github.com/dnewcome/mlprof/issues/18)), the `baseline_compare`
-exploration scenario ([#19](https://github.com/dnewcome/mlprof/issues/19)), and
+([#21](https://github.com/dnewcome/mlprobe/issues/21)), library mode + eval-only
+([#20](https://github.com/dnewcome/mlprobe/issues/20),
+[#18](https://github.com/dnewcome/mlprobe/issues/18)), the `baseline_compare`
+exploration scenario ([#19](https://github.com/dnewcome/mlprobe/issues/19)), and
 dataset profiling (block-size / class-balance / similarity / outlier + a
 pre-flight `data_audit`).
 
 **Open** (tracked as issues):
 
-- **Cost** — live AWS pricing ([#2](https://github.com/dnewcome/mlprof/issues/2)),
+- **Cost** — live AWS pricing ([#2](https://github.com/dnewcome/mlprobe/issues/2)),
   spot-pricing with interruption overhead
-  ([#12](https://github.com/dnewcome/mlprof/issues/12))
+  ([#12](https://github.com/dnewcome/mlprobe/issues/12))
 - **Checkpointing / incremental** — passive
-  ([#9](https://github.com/dnewcome/mlprof/issues/9)) and full empirical
-  ([#11](https://github.com/dnewcome/mlprof/issues/11)) verification, chained
-  warm-start probes ([#10](https://github.com/dnewcome/mlprof/issues/10))
+  ([#9](https://github.com/dnewcome/mlprobe/issues/9)) and full empirical
+  ([#11](https://github.com/dnewcome/mlprobe/issues/11)) verification, chained
+  warm-start probes ([#10](https://github.com/dnewcome/mlprobe/issues/10))
 - **Inference / deployment** — inference profiling
-  ([#8](https://github.com/dnewcome/mlprof/issues/8)), model-size measurement
-  ([#15](https://github.com/dnewcome/mlprof/issues/15))
+  ([#8](https://github.com/dnewcome/mlprobe/issues/8)), model-size measurement
+  ([#15](https://github.com/dnewcome/mlprobe/issues/15))
 - **MLflow** — `from_mlflow_run()` read side
-  ([#17](https://github.com/dnewcome/mlprof/issues/17))
+  ([#17](https://github.com/dnewcome/mlprobe/issues/17))
 - **Profiling depth** — per-stage GPU util + bottleneck findings
-  ([#13](https://github.com/dnewcome/mlprof/issues/13))
+  ([#13](https://github.com/dnewcome/mlprobe/issues/13))
 - **Sampling** — loader-side `subset_strategy` plumbing
-  ([#6](https://github.com/dnewcome/mlprof/issues/6))
+  ([#6](https://github.com/dnewcome/mlprobe/issues/6))
 - **Quality gates** — hard pass/fail gate across variants
-  ([#14](https://github.com/dnewcome/mlprof/issues/14)), sub-group gates
-  ([#23](https://github.com/dnewcome/mlprof/issues/23)), subset-fraction guard
-  ([#22](https://github.com/dnewcome/mlprof/issues/22))
+  ([#14](https://github.com/dnewcome/mlprobe/issues/14)), sub-group gates
+  ([#23](https://github.com/dnewcome/mlprobe/issues/23)), subset-fraction guard
+  ([#22](https://github.com/dnewcome/mlprobe/issues/22))
 - **Report math** — saturating power-law quality fit
-  ([#3](https://github.com/dnewcome/mlprof/issues/3)), repetition averaging
-  ([#4](https://github.com/dnewcome/mlprof/issues/4))
+  ([#3](https://github.com/dnewcome/mlprobe/issues/3)), repetition averaging
+  ([#4](https://github.com/dnewcome/mlprobe/issues/4))
 - **Infra / spec** — Docker launcher
-  ([#1](https://github.com/dnewcome/mlprof/issues/1); lower priority now that
+  ([#1](https://github.com/dnewcome/mlprobe/issues/1); lower priority now that
   library mode exists), YAML spec loading
-  ([#7](https://github.com/dnewcome/mlprof/issues/7)), sagebaker relationship
-  doc ([#16](https://github.com/dnewcome/mlprof/issues/16))
+  ([#7](https://github.com/dnewcome/mlprobe/issues/7)), sagebaker relationship
+  doc ([#16](https://github.com/dnewcome/mlprobe/issues/16))
 
 ## License
 

@@ -29,12 +29,12 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from mlprof.probe import ProbeResult
-from mlprof.profile import ProfileReport
-from mlprof.protocol import EvalResult
-from mlprof.runner import evaluate_existing
-from mlprof.scenarios.base import ScenarioResult
-from mlprof.spec import ModelSpec
+from mlprobe.probe import ProbeResult
+from mlprobe.profile import ProfileReport
+from mlprobe.protocol import EvalResult
+from mlprobe.runner import evaluate_existing
+from mlprobe.scenarios.base import ScenarioResult
+from mlprobe.spec import ModelSpec
 
 
 # Metrics whose lower value is better, independent of any spec declaration.

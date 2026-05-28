@@ -22,7 +22,7 @@ import math
 import time
 from pathlib import Path
 
-from mlprof import (
+from mlprobe import (
     Capabilities,
     DatasetSpec,
     EvalMetric,
@@ -34,7 +34,7 @@ from mlprof import (
     RuntimeConfig,
     TrainResult,
 )
-from mlprof.scenarios import (
+from mlprobe.scenarios import (
     algorithm_selection,
     parallelization_effect,
     scaling_with_n,

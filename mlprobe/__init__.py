@@ -1,4 +1,4 @@
-from mlprof.spec import (
+from mlprobe.spec import (
     Capabilities,
     CategoricalSweep,
     DatasetSpec,
@@ -11,7 +11,7 @@ from mlprof.spec import (
     Sweep,
     TargetInstance,
 )
-from mlprof.protocol import (
+from mlprobe.protocol import (
     EvaluateFn,
     EvalResult,
     LoadDatasetFn,
@@ -21,16 +21,16 @@ from mlprof.protocol import (
     TrainFn,
     TrainResult,
 )
-from mlprof.targets import (
+from mlprobe.targets import (
     GpuSpec,
     InstanceSpec,
     known_instances,
     register,
     resolve,
 )
-from mlprof.runtime import resolve_runtime
-from mlprof.audit import AuditFinding, AuditReport, audit
-from mlprof.dataset import (
+from mlprobe.runtime import resolve_runtime
+from mlprobe.audit import AuditFinding, AuditReport, audit
+from mlprobe.dataset import (
     DatasetProfile,
     block_size_profile,
     block_sizes_from_labels,
@@ -41,24 +41,24 @@ from mlprof.dataset import (
     similarity_profile,
     stratified_plan,
 )
-from mlprof.sweep import expand_sweeps
-from mlprof.measure import Measurement, measure
-from mlprof.profile import (
+from mlprobe.sweep import expand_sweeps
+from mlprobe.measure import Measurement, measure
+from mlprobe.profile import (
     IncompatibleSpecError,
     ProfileReport,
     Profiler,
     StageTiming,
     profile,
 )
-from mlprof.probe import ProbeInput, ProbeResult, run_probe
-from mlprof.runner import RunPlan, RunResults, evaluate_existing, plan_run, run
-from mlprof.scaling import (
+from mlprobe.probe import ProbeInput, ProbeResult, run_probe
+from mlprobe.runner import RunPlan, RunResults, evaluate_existing, plan_run, run
+from mlprobe.scaling import (
     ScalingFit,
     fit_memory_scaling,
     fit_quality_scaling,
     fit_time_scaling,
 )
-from mlprof.report import GroupSummary, Report, build_report
+from mlprobe.report import GroupSummary, Report, build_report
 
 __all__ = [
     "Capabilities",

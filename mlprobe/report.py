@@ -20,17 +20,17 @@ from collections import defaultdict
 from dataclasses import dataclass, field
 from typing import Any
 
-from mlprof.audit import AuditFinding, AuditReport
-from mlprof.probe import ProbeResult
-from mlprof.runner import RunResults
-from mlprof.scaling import (
+from mlprobe.audit import AuditFinding, AuditReport
+from mlprobe.probe import ProbeResult
+from mlprobe.runner import RunResults
+from mlprobe.scaling import (
     ScalingFit,
     fit_memory_scaling,
     fit_quality_scaling,
     fit_time_scaling,
 )
-from mlprof.spec import ModelSpec
-from mlprof.targets import resolve
+from mlprobe.spec import ModelSpec
+from mlprobe.targets import resolve
 
 
 # Thresholds for post-probe warnings. Both leave some headroom for system

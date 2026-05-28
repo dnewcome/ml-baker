@@ -1,11 +1,11 @@
 """Dataset profiling — surface the *shape* of the training data, cheaply.
 
-This is decision-support, not a solver. Per mlprof's scope boundary, a
+This is decision-support, not a solver. Per mlprobe's scope boundary, a
 ``DatasetProfile`` reports *neutral facts* about the data so you (or a separate
 AI-assisted chat) can decide which approach to try; it never prescribes an
-algorithm from shape. mlprof stays data-blind: you compute the domain-specific
+algorithm from shape. mlprobe stays data-blind: you compute the domain-specific
 inputs (block sizes, pairwise similarities, anomaly scores, labels — you own
-the blocking key / similarity notion), and mlprof does the reusable analysis.
+the blocking key / similarity notion), and mlprobe does the reusable analysis.
 
 Profilers here:
 
@@ -34,7 +34,7 @@ from typing import Any, Iterable, Mapping
 
 import numpy as np
 
-from mlprof.audit import AuditFinding
+from mlprobe.audit import AuditFinding
 
 
 @dataclass
@@ -229,8 +229,8 @@ def stratified_plan(
 
     Give a ``{group: count}`` mapping and either ``fraction`` (of the total) or
     an absolute ``n``. Each group is allocated proportionally but at least
-    ``min_per_group`` (never more than it has). mlprof produces the plan; your
-    loader draws it — mlprof never touches the data."""
+    ``min_per_group`` (never more than it has). mlprobe produces the plan; your
+    loader draws it — mlprobe never touches the data."""
     counts = dict(group_counts)
     total = sum(counts.values())
     profile = DatasetProfile(kind="stratified_plan")
@@ -402,10 +402,10 @@ def data_audit(
     capability ``audit(spec)``, meant to be called pre-flight (before probing).
 
     The user's analyze callable computes the domain-specific shape (it owns the
-    data); mlprof loads the data cheaply (or you pass ``dataset`` in) and hands
+    data); mlprobe loads the data cheaply (or you pass ``dataset`` in) and hands
     it over. Returns ``[]`` when no analyze callable is configured.
     """
-    from mlprof.probe import _import_dotted  # local: keep probe stack off the import path
+    from mlprobe.probe import _import_dotted  # local: keep probe stack off the import path
 
     analyze_ref = getattr(spec.dataset, "analyze_callable", None)
     if not analyze_ref:

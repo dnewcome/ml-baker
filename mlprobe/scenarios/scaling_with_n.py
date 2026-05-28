@@ -16,17 +16,17 @@ from typing import Any
 
 import numpy as np
 
-from mlprof.scaling import fit_time_scaling
-from mlprof.scenarios.base import (
+from mlprobe.scaling import fit_time_scaling
+from mlprobe.scenarios.base import (
     ProbeReq,
     ScenarioResult,
     default_config,
     resolve_target,
     run_probe_reqs,
 )
-from mlprof.runtime import resolve_runtime
-from mlprof.spec import ModelSpec
-from mlprof.targets import resolve
+from mlprobe.runtime import resolve_runtime
+from mlprobe.spec import ModelSpec
+from mlprobe.targets import resolve
 
 
 class ScalingWithN:

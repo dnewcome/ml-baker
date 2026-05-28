@@ -18,7 +18,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from mlprof.scenarios.base import (
+from mlprobe.scenarios.base import (
     ProbeReq,
     ScenarioResult,
     default_config,
@@ -27,8 +27,8 @@ from mlprof.scenarios.base import (
     run_probe_reqs,
     subset_fraction_for,
 )
-from mlprof.runtime import resolve_runtime
-from mlprof.spec import ModelSpec
+from mlprobe.runtime import resolve_runtime
+from mlprobe.spec import ModelSpec
 
 
 # Quality within this relative band is treated as a tie, so the faster variant

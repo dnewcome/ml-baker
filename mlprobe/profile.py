@@ -1,18 +1,18 @@
 """Library mode — instrument a *real* training run from inside it.
 
-Probe mode (``mlprof.run`` / scenarios) predicts cost/time/memory before you
+Probe mode (``mlprobe.run`` / scenarios) predicts cost/time/memory before you
 commit, by running small external probes. That hits a wall for complex
-production models: the training code must be importable in mlprof's
-environment. Library mode sidesteps it entirely — you ``import mlprof`` inside
+production models: the training code must be importable in mlprobe's
+environment. Library mode sidesteps it entirely — you ``import mlprobe`` inside
 the training script you're already running, so you're already in the right
 environment with the right data on the right hardware.
 
 Two entry points, sharing the existing external-measurement machinery:
 
-``measure()`` (in ``mlprof.measure``) is the low-level primitive — already
+``measure()`` (in ``mlprobe.measure``) is the low-level primitive — already
 public — for timing one block::
 
-    with mlprof.measure() as m:
+    with mlprobe.measure() as m:
         labels = run_agglomerative(distances, threshold)
     print(m.wall_clock_s, m.peak_rss_mb)
 
@@ -22,7 +22,7 @@ per-stage timings via ``p.stage(...)``, produces a single-run report (the
 probe-mode report shape minus the scaling fits, which need multiple sizes),
 and — when handed an MLflow run — logs all of it there::
 
-    with mlprof.profile(spec=spec, mlflow_run=mlflow.active_run()) as p:
+    with mlprobe.profile(spec=spec, mlflow_run=mlflow.active_run()) as p:
         with p.stage("load"):
             data = load_everything()
         with p.stage("cluster"):
@@ -42,9 +42,9 @@ from typing import Any, Iterator
 
 import psutil
 
-from mlprof.audit import AuditReport, audit
-from mlprof.measure import Measurement, _process_tree_rss_mb, measure
-from mlprof.spec import ModelSpec
+from mlprobe.audit import AuditReport, audit
+from mlprobe.measure import Measurement, _process_tree_rss_mb, measure
+from mlprobe.spec import ModelSpec
 
 
 class IncompatibleSpecError(RuntimeError):
@@ -167,7 +167,7 @@ def profile(
     name : label for the report when no spec is given.
     mlflow_run : an MLflow ``Run`` (or anything with ``.info.run_id``). When
         provided, the profile metrics + audit findings are logged to it on
-        exit. Requires ``mlprof[mlflow]``; logging is skipped with a warning if
+        exit. Requires ``mlprobe[mlflow]``; logging is skipped with a warning if
         mlflow isn't installed.
     on_blocker : what to do if the pre-flight audit finds a hard
         incompatibility — ``"raise"`` (fail fast before spending compute),
@@ -181,7 +181,7 @@ def profile(
                 f"pre-flight audit found {len(audit_report.incompatible)} blocker(s): {blockers}"
             )
         if on_blocker == "warn":
-            print(f"mlprof: pre-flight audit blockers: {blockers}", file=sys.stderr)
+            print(f"mlprobe: pre-flight audit blockers: {blockers}", file=sys.stderr)
 
     p = Profiler(spec_name=(spec.name if spec is not None else name), audit_report=audit_report)
     with measure() as m:
@@ -202,28 +202,28 @@ def _log_to_mlflow(report: ProfileReport, run: Any) -> None:
     except ImportError:
         warnings.warn(
             "mlflow_run was passed but mlflow is not installed; skipping logging. "
-            "Install with: pip install 'mlprof[mlflow]'",
+            "Install with: pip install 'mlprobe[mlflow]'",
             stacklevel=2,
         )
         return
 
     metrics: dict[str, float] = {
-        "mlprof.wall_clock_s": report.wall_clock_s,
-        "mlprof.peak_rss_mb": report.peak_rss_mb,
+        "mlprobe.wall_clock_s": report.wall_clock_s,
+        "mlprobe.peak_rss_mb": report.peak_rss_mb,
     }
     if report.peak_vram_mb is not None:
-        metrics["mlprof.peak_vram_mb"] = report.peak_vram_mb
+        metrics["mlprobe.peak_vram_mb"] = report.peak_vram_mb
     if report.gpu_util_avg is not None:
-        metrics["mlprof.gpu_util_avg"] = report.gpu_util_avg
+        metrics["mlprobe.gpu_util_avg"] = report.gpu_util_avg
     for s in report.stages:
-        metrics[f"mlprof.stage.{_sanitize_key(s.name)}.wall_clock_s"] = s.wall_clock_s
+        metrics[f"mlprobe.stage.{_sanitize_key(s.name)}.wall_clock_s"] = s.wall_clock_s
 
     tags: dict[str, str] = {}
     if report.audit is not None:
-        tags["mlprof.audit_has_blockers"] = str(report.audit.has_blockers).lower()
+        tags["mlprobe.audit_has_blockers"] = str(report.audit.has_blockers).lower()
         codes = sorted({f.code for f in report.audit.findings})
         if codes:
-            tags["mlprof.audit_findings"] = ",".join(codes)
+            tags["mlprobe.audit_findings"] = ",".join(codes)
 
     run_id = getattr(getattr(run, "info", None), "run_id", None)
     if run_id is not None:

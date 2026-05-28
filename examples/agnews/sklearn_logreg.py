@@ -10,7 +10,7 @@ from __future__ import annotations
 import pickle
 from pathlib import Path
 
-from mlprof import EvalResult, RuntimeConfig, TrainResult
+from mlprobe import EvalResult, RuntimeConfig, TrainResult
 
 
 def train(config: dict, dataset_subset, output_dir: Path,

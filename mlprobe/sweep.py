@@ -14,7 +14,7 @@ from __future__ import annotations
 from itertools import product
 from typing import Any
 
-from mlprof.spec import (
+from mlprobe.spec import (
     CategoricalSweep,
     HyperParam,
     ModelSpec,

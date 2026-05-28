@@ -1,7 +1,7 @@
 """Demo: dataset-shape profiling — surface roadblocks before you train.
 
 All of these are cheap (O(n) or a sample) and *data-blind*: you supply the
-domain-specific inputs (block sizes, similarities, labels), mlprof does the
+domain-specific inputs (block sizes, similarities, labels), mlprobe does the
 reusable analysis and reports neutral facts. None of it prescribes an
 algorithm — it tells you where the cost / risk is so you can decide.
 
@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from mlprof import (
+from mlprobe import (
     block_size_profile,
     class_balance_profile,
     outlier_profile,
@@ -32,7 +32,7 @@ def main() -> None:
     print(class_balance_profile({"common": 47_000, "rare": 2_000, "tiny": 200},
                                 subset_fraction=0.02).format(), "\n")
 
-    print("# stratified plan — representative draw at 2% (mlprof computes, your loader draws)")
+    print("# stratified plan — representative draw at 2% (mlprobe computes, your loader draws)")
     print(stratified_plan({"common": 47_000, "rare": 2_000, "tiny": 200},
                           fraction=0.02, min_per_group=20).data["plan"], "\n")
 

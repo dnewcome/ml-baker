@@ -18,14 +18,14 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Iterator
 
-from mlprof.probe import ProbeInput, ProbeResult, _import_dotted, run_probe
-from mlprof.runtime import resolve_runtime
-from mlprof.spec import ModelSpec
-from mlprof.sweep import expand_sweeps
-from mlprof.targets import InstanceSpec, resolve
+from mlprobe.probe import ProbeInput, ProbeResult, _import_dotted, run_probe
+from mlprobe.runtime import resolve_runtime
+from mlprobe.spec import ModelSpec
+from mlprobe.sweep import expand_sweeps
+from mlprobe.targets import InstanceSpec, resolve
 
 if TYPE_CHECKING:
-    from mlprof.protocol import EvalResult, RuntimeConfig
+    from mlprobe.protocol import EvalResult, RuntimeConfig
 
 
 @dataclass(frozen=True)
@@ -252,7 +252,7 @@ def _launch_subprocess(probe: ProbeInput, *, timeout: int) -> ProbeResult:
     input_path.parent.mkdir(parents=True, exist_ok=True)
     input_path.write_text(json.dumps(asdict(probe), indent=2))
 
-    cmd = [sys.executable, "-m", "mlprof.probe", str(input_path)]
+    cmd = [sys.executable, "-m", "mlprobe.probe", str(input_path)]
     try:
         proc = subprocess.run(
             cmd,

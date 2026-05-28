@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import pytest
 
-from mlprof import (
+from mlprobe import (
     Capabilities,
     DatasetSpec,
     EvalMetric,
@@ -20,7 +20,7 @@ from mlprof import (
     ModelSpec,
     ProbeConfig,
 )
-from mlprof.scenarios import (
+from mlprobe.scenarios import (
     ScenarioResult,
     algorithm_selection,
     parallelization_effect,
