@@ -24,6 +24,7 @@ from mlprobe import (
     outlier_profile,
     similarity_profile,
     stratified_plan,
+    token_length_profile,
 )
 
 
@@ -212,3 +213,37 @@ def test_data_audit_normalizes_a_list():
 
 def test_data_audit_empty_when_unconfigured():
     assert data_audit(_spec(None)) == []
+
+
+# ---- token_length_profile -------------------------------------------------
+
+def test_token_length_percentiles_and_summary():
+    lengths = [10] * 90 + [1000] * 10           # mostly short, a few long
+    p = token_length_profile(lengths)
+    assert p.stats["n"] == 100
+    assert p.stats["p50"] == 10
+    assert p.stats["max"] == 1000
+    assert "length_summary" in _codes_of(p)
+
+
+def test_token_length_truncation_and_padding_waste():
+    lengths = [16] * 95 + [4096] * 5            # p50 tiny, rare very-long
+    p = token_length_profile(lengths, max_seq_len=512)
+    # 5% exceed 512 → truncation warning.
+    assert p.stats["truncation_fraction"] == 0.05
+    assert "truncation" in _codes_of(p)
+    # Padding all to 512 processes far more than the real tokens → waste warning.
+    assert p.stats["pad_to_max_waste_factor"] > 1.5
+    assert "padding_waste" in _codes_of(p)
+
+
+def test_token_length_uniform_no_waste_warning():
+    p = token_length_profile([512] * 1000, max_seq_len=512)
+    assert p.stats["pad_to_max_waste_factor"] == 1.0
+    assert "padding_waste" not in _codes_of(p)
+    assert "truncation" not in _codes_of(p)
+
+
+def test_token_length_empty():
+    p = token_length_profile([])
+    assert "empty" in _codes_of(p)

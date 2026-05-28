@@ -29,7 +29,7 @@ from mlprobe.targets import (
     resolve,
 )
 from mlprobe.runtime import resolve_runtime
-from mlprobe.audit import AuditFinding, AuditReport, audit
+from mlprobe.audit import AuditFinding, AuditReport, audit, estimate_training_vram_gb
 from mlprobe.dataset import (
     DatasetProfile,
     block_size_profile,
@@ -40,6 +40,7 @@ from mlprobe.dataset import (
     outlier_profile,
     similarity_profile,
     stratified_plan,
+    token_length_profile,
 )
 from mlprobe.sweep import expand_sweeps
 from mlprobe.measure import Measurement, measure
@@ -103,12 +104,14 @@ __all__ = [
     "build_report",
     "class_balance_profile",
     "data_audit",
+    "estimate_training_vram_gb",
     "evaluate_existing",
     "expand_sweeps",
     "format_data_audit",
     "outlier_profile",
     "similarity_profile",
     "stratified_plan",
+    "token_length_profile",
     "fit_memory_scaling",
     "fit_quality_scaling",
     "fit_time_scaling",

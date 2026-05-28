@@ -156,6 +156,12 @@ class FrameworkHints(BaseModel):
     min_vram_gb: float | None = None              # user's best guess, validated empirically
     cpu_bound: bool = False                       # e.g. spaCy pipelines; GPU is wasted
 
+    # LLM hints: when param_count_b is set, the audit prints a rough estimated
+    # training-VRAM figure (weights + grads + optimizer + overhead), adjusted
+    # for the fine-tune method. A coarse decision-support estimate, not a gate.
+    param_count_b: float | None = None            # model size in billions of params
+    finetune_method: Literal["full", "lora", "qlora"] | None = None
+
 
 class DatasetSpec(BaseModel):
     """How the runner gets data. The user's loader is responsible for

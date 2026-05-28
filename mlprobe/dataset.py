@@ -389,6 +389,66 @@ def outlier_profile(
     return profile
 
 
+# ---- Token lengths (LLM padding / truncation cost) ------------------------
+
+def token_length_profile(
+    lengths: Iterable[int],
+    *,
+    max_seq_len: int | None = None,
+    truncation_warn: float = 0.02,
+    waste_warn: float = 1.5,
+) -> DatasetProfile:
+    """Profile per-example token lengths for an LLM fine-tune.
+
+    ``lengths`` are token counts per example (you tokenize; mlprobe analyzes).
+    Surfaces the percentiles, the fraction that would truncate at
+    ``max_seq_len``, and the pad-to-max **waste factor** (padded tokens ÷ real
+    tokens if every example is padded to ``max_seq_len``) — the quantity that
+    drives fine-tune throughput and the seq_len ↔ batch ↔ VRAM tradeoff. Facts
+    only; it does not pick a ``max_seq_len`` for you.
+    """
+    x = np.asarray([int(v) for v in lengths if int(v) >= 0], dtype=float)
+    profile = DatasetProfile(kind="token_lengths")
+    if x.size == 0:
+        profile.findings.append(AuditFinding(
+            severity="info", code="empty", message="No token lengths provided."))
+        return profile
+
+    q = {p: float(np.quantile(x, p)) for p in (0.5, 0.95, 0.99)}
+    longest = int(x.max())
+    profile.stats.update({
+        "n": float(x.size), "mean": float(x.mean()),
+        "p50": q[0.5], "p95": q[0.95], "p99": q[0.99], "max": float(longest),
+    })
+    profile.findings.append(AuditFinding(
+        severity="info", code="length_summary",
+        message=f"{x.size:,} examples; tokens p50={q[0.5]:.0f} / p95={q[0.95]:.0f} / "
+                f"p99={q[0.99]:.0f} / max={longest:,}.",
+    ))
+
+    if max_seq_len is not None:
+        truncated = float(np.mean(x > max_seq_len))
+        kept = np.minimum(x, max_seq_len)
+        waste = (x.size * max_seq_len) / float(kept.sum()) if kept.sum() > 0 else 1.0
+        profile.stats["max_seq_len"] = float(max_seq_len)
+        profile.stats["truncation_fraction"] = truncated
+        profile.stats["pad_to_max_waste_factor"] = waste
+        if truncated >= truncation_warn:
+            profile.findings.append(AuditFinding(
+                severity="warning", code="truncation",
+                message=f"{truncated:.1%} of examples exceed max_seq_len={max_seq_len:,} and "
+                        f"would be truncated (losing tokens).",
+            ))
+        if waste >= waste_warn:
+            profile.findings.append(AuditFinding(
+                severity="warning", code="padding_waste",
+                message=f"Padding every example to max_seq_len={max_seq_len:,} processes "
+                        f"~{waste:.1f}x the real tokens (p50 is only {q[0.5]:.0f}). "
+                        f"Length-bucketing / pad-to-longest-in-batch recovers most of it.",
+            ))
+    return profile
+
+
 # ---- Pre-flight data audit (spec-integrated) ------------------------------
 
 def data_audit(

@@ -24,6 +24,7 @@ demo = [
     "torch>=2.1",
     "transformers>=4.40",
     "accelerate>=0.27",
+    "peft>=0.10",
 ]
 
 [tool.setuptools.packages.find]

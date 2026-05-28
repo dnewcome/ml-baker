@@ -415,6 +415,7 @@ applies across a small family of profilers (see
 | `stratified_plan` | per-group draw counts for a representative subsample (mlprobe computes the plan; your loader draws it) |
 | `similarity_profile` | distribution of pairwise similarities — clean separation vs a blur where FP/FN concentrate (Sarle bimodality coefficient) |
 | `outlier_profile` | IQR/σ outlier fractions and tail heaviness |
+| `token_length_profile` | LLM token-length percentiles, truncation fraction, and pad-to-max waste factor |
 
 Each returns a `DatasetProfile` (scalar `stats`, structured `data`, and neutral
 `findings`). For a spec-integrated **pre-flight** — the explicit parallel to the
@@ -425,6 +426,15 @@ function returning profiles, and call `data_audit(spec)` before probing:
 profiles = mlprobe.data_audit(spec)        # runs your analyze() over cheaply-loaded data
 print(mlprobe.format_data_audit(profiles)) # neutral shape facts, no training spent
 ```
+
+### LLM fine-tuning
+
+A LoRA fine-tune is just another `train()`/`evaluate()`/`load()` — the same
+spec, scenarios, and library mode apply. The most useful LLM-specific bits:
+`token_length_profile` (padding/truncation cost) and the audit's estimated
+training-VRAM figure (set `FrameworkHints.param_count_b` + `finetune_method`;
+`estimate_training_vram_gb` is also callable directly). Worked end-to-end in
+[`examples/lora_finetune/`](examples/lora_finetune).
 
 ## How it composes
 
@@ -562,6 +572,10 @@ register(InstanceSpec(
 - [`examples/dataset_profile_demo.py`](examples/dataset_profile_demo.py) —
   block-size profiling: surface a pair-explosion roadblock before training.
   No ML libraries.
+- [`examples/lora_finetune/`](examples/lora_finetune) — **LLM LoRA fine-tuning**:
+  pre-flight audit with an estimated training-VRAM figure, scenarios on a
+  synthetic trainable (no ML libraries), and a real HF + PEFT reference
+  template. See its [README](examples/lora_finetune/README.md).
 - [`examples/fake_trainable.py`](examples/fake_trainable.py) — a
   reference implementation of the user-supplied callables (synthetic).
 - [`examples/agnews/`](examples/agnews) — **realistic demo on the AG News

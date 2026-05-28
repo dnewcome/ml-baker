@@ -67,6 +67,52 @@ class AuditReport:
         return "\n".join(lines).strip()
 
 
+def estimate_training_vram_gb(
+    params_b: float,
+    *,
+    precision: str = "bf16",
+    method: str = "full",
+    overhead: float = 0.25,
+) -> dict[str, float | str]:
+    """Rough training-VRAM estimate (GB) for a transformer, as decision support.
+
+    Sums the predictable components — weights, gradients, optimizer state — and
+    adds a coarse ``overhead`` allowance for activations/fragmentation
+    (activations depend on batch × seq_len × depth and are reduced a lot by
+    gradient checkpointing, so they are not modeled precisely here).
+
+    method:
+      - ``"full"``  — all params trainable; AdamW mixed-precision ≈ 16 B/param.
+      - ``"lora"``  — base frozen in working precision; adapter params negligible.
+      - ``"qlora"`` — 4-bit quantized frozen base (~0.5 B/param), adapter negligible.
+
+    This is a ballpark for choosing an instance, not a guarantee — validate with
+    a probe.
+    """
+    bytes_w = 4 if precision == "fp32" else 2
+    p = params_b * 1e9
+    if method == "qlora":
+        weights = p * 0.5
+        trainable = 0.0
+    elif method == "lora":
+        weights = p * bytes_w
+        trainable = 0.0
+    else:  # full
+        weights = p * bytes_w
+        trainable = p
+    grads = trainable * bytes_w
+    optimizer = trainable * 12.0  # AdamW: fp32 master copy + m + v
+    total_gb = (weights + grads + optimizer) * (1.0 + overhead) / 1e9
+    return {
+        "params_b": params_b,
+        "precision": precision,
+        "method": method,
+        "weights_gb": weights / 1e9,
+        "grad_optimizer_gb": (grads + optimizer) / 1e9,
+        "estimated_total_gb": total_gb,
+    }
+
+
 def audit(spec: ModelSpec) -> AuditReport:
     """Run the full audit. Resolves each declared target against the catalog."""
     report = AuditReport()
@@ -157,6 +203,24 @@ def _audit_capabilities(spec: ModelSpec, report: AuditReport) -> None:
             capability="supports_gradient_accumulation",
         ))
 
+    hints = spec.framework_hints
+    if hints.param_count_b:
+        method = hints.finetune_method or "full"
+        precision = "bf16" if caps.supports_mixed_precision else "fp32"
+        est = estimate_training_vram_gb(hints.param_count_b, precision=precision, method=method)
+        report.findings.append(AuditFinding(
+            severity="info",
+            code="estimated_training_vram",
+            message=(
+                f"Estimated training VRAM ~{est['estimated_total_gb']:.0f}GB for a "
+                f"{hints.param_count_b:g}B {method} run in {precision} "
+                f"(weights ~{est['weights_gb']:.0f}GB + grad/optimizer "
+                f"~{est['grad_optimizer_gb']:.0f}GB + overhead). Rough estimate — "
+                f"validate empirically."
+            ),
+            capability="param_count_b",
+        ))
+
 
 # --- target-compatibility findings -----------------------------------------
 
@@ -245,6 +309,26 @@ def _audit_target_compatibility(
                 message=(
                     f"{instance.gpu.model} does not support bf16; runtime will use "
                     f"fp16 instead. Watch for loss-scaling instability."
+                ),
+                target=tt,
+            ))
+
+    # Estimated training-VRAM check (only when a param count is declared).
+    if hints.param_count_b and instance.gpu is not None:
+        resolved = resolve_runtime(caps, instance)
+        est = estimate_training_vram_gb(
+            hints.param_count_b, precision=resolved.precision,
+            method=hints.finetune_method or "full",
+        )
+        if est["estimated_total_gb"] > 0.9 * instance.gpu.vram_gb:
+            report.findings.append(AuditFinding(
+                severity="warning",
+                code="estimated_vram_exceeds_gpu",
+                message=(
+                    f"Estimated training VRAM ~{est['estimated_total_gb']:.0f}GB exceeds ~90% "
+                    f"of {tt!r}'s {instance.gpu.vram_gb}GB per-GPU ({instance.gpu.model}). "
+                    f"Expect OOM without sharding (FSDP/DeepSpeed), quantization (QLoRA), or "
+                    f"gradient accumulation."
                 ),
                 target=tt,
             ))
