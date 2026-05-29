@@ -48,6 +48,7 @@ from mlprobe.profile import (
     IncompatibleSpecError,
     ProfileReport,
     Profiler,
+    StageBottleneck,
     StageTiming,
     profile,
 )
@@ -109,6 +110,7 @@ __all__ = [
     "RunResults",
     "SagemakerLauncher",
     "ScalingFit",
+    "StageBottleneck",
     "StageTiming",
     "SubprocessLauncher",
     "audit",

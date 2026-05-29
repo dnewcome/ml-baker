@@ -629,3 +629,147 @@ That sequence gives a usable "profile any artifact for deployment" tool after
 step 2, the unique linkage value after step 3, and the polished surface after
 step 4 — without committing to the big stuff (generation latency, multi-replica)
 until real use asks for it.
+
+---
+
+# Pipeline & steps (added 2026-05-29) — generalize beyond train→eval
+
+mlprobe's model of a run is essentially **`train()` → `evaluate()`** (with
+dataset profiling before and inference planned after). But real pipelines —
+especially clustering / dedup / entity-resolution like the brand-clustering
+work — have *other steps* that often dominate cost and aren't "training" at
+all: preprocess, **embed**, block/index, **cluster**, postprocess. For dedup
+the clustering step *is* the model; there's no gradient "training."
+
+Two things are wanted (both selected): **(1)** profile a whole pipeline with a
+per-stage breakdown + bottleneck analysis (this is issue
+[#13](https://github.com/dnewcome/mlprobe/issues/13)), and **(2)** probe any
+single step standalone — embed, block, cluster — like `profile_inference` does
+for serving.
+
+## Decision 6: generalize the protocol, or layer steps on the fixed roles?
+
+- **A. Layer (RECOMMENDED).** Keep `train`/`evaluate`/`infer` as named,
+  well-supported roles, but add a general *step* concept underneath. A spec may
+  declare an explicit `pipeline: list[StepSpec]`; if it doesn't, the default
+  pipeline is `[train, evaluate]` — so everything built today is just the
+  two-step default. Probe mode runs the declared steps in sequence, measuring
+  each; library mode's existing `p.stage()` is the same concept. Adds
+  standalone step probing without breaking a single existing spec/example.
+
+- **B. Replace with a general Step/DAG model.** Drop the privileged roles;
+  everything is a `Step` with typed inputs/outputs; a pipeline is a DAG. Most
+  general; biggest rewrite; breaks existing specs, the scenarios, the examples,
+  and the audit's train-centric findings. Not worth it now.
+
+- **C. Library-mode stages only (status quo + #13).** Add bottleneck findings
+  to `ProfileReport` but don't touch probe mode. Cheapest, but doesn't give
+  standalone step probing (selection #2). Good as *phase 0*, not the endpoint.
+
+**Recommendation: A.** It makes `train→eval` one instance of a pipeline,
+unifies with library-mode stages and inference ("infer is just a step"), and
+delivers both selections without a rewrite.
+
+## What a "step" is
+
+```python
+@dataclass
+class StepSpec:
+    name: str
+    callable: str                 # dotted path to a StepFn
+    consumes: str | None = None   # "dataset" | a prior step name | "artifact"
+    resource_hint: str | None = None  # "cpu_bound" | "gpu_bound" (for findings)
+    params: dict = field(default_factory=dict)
+
+class StepFn(Protocol):
+    def __call__(self, inputs, runtime, **params) -> StepResult: ...
+
+@dataclass
+class StepResult:
+    outputs: Any                  # handed to the next step (or an artifact path)
+    metrics: dict[str, float] = field(default_factory=dict)
+    error: str | None = None
+```
+
+mlprobe measures each step externally with the existing psutil/NVML sampler —
+the same machinery as train probes. `train`/`evaluate`/`infer` become
+well-known step shapes (e.g. a train step `consumes="dataset"` and outputs an
+artifact; eval `consumes="artifact"`).
+
+## Pipeline in one run (selection #1, = #13 done properly)
+
+Spec declares `pipeline` (or defaults to train+eval). The probe runs the steps
+in order, threading each step's `outputs` into the next's `inputs`, measuring
+each. The report gains a per-stage breakdown (wall-clock %, peak RSS/VRAM, GPU
+util per step) and a **bottleneck finding**: which step dominates wall-clock
+and whether it's CPU- or GPU-bound (e.g. "clustering = 92% of wall-clock,
+CPU-bound — GPU on this target is idle for most of the run"). This is exactly
+#13, and it works in probe mode, not just library mode. Library mode's
+`p.stage()` already does the timing half; this adds per-stage resource sampling
++ the finding, and brings the same to probe mode.
+
+## Standalone step probe (selection #2)
+
+`profile_step(spec, step_name, inputs=..., target=...)` runs one step against
+provided or loaded inputs — eval-only style (mirrors `evaluate_existing` /
+`profile_inference`). So you can probe just the embedding pass or just
+clustering, in isolation, on a chosen target. Because `scaling_with_n` already
+sweeps subset sizes, it composes: "how does the clustering step scale with N?"
+becomes `scaling_with_n` pointed at one step — which is exactly the
+brand-clustering question (the Σ-pairs blowup the `block_size_profile` predicts,
+now *measured* per-step).
+
+## Scenarios
+
+- `stage_bottleneck` (the Decision-4 catalog entry) is the surface for
+  whole-pipeline profiling.
+- `scaling_with_n` / `parallelization_effect` gain an optional `step=` to
+  target a single step instead of the whole run.
+
+## How it connects
+
+- **#13** stage profiling — this *is* #13, generalized to a declared pipeline.
+- **Library mode** `p.stage()` — same concept; unify so a real run and a probe
+  describe stages the same way.
+- **Inference (#8)** — `infer` becomes just another step; the pipeline model
+  subsumes it.
+- **Dataset profiling** — a "preprocess"/"embed" step's measured cost sits next
+  to the *predicted* shape cost from `block_size_profile` (predicted vs actual).
+- **Scope boundary** — still measure + surface. The bottleneck finding states
+  the fact ("clustering dominates, CPU-bound"); it doesn't tell you to rewrite
+  the algorithm.
+
+## Phasing (each independently shippable)
+
+0. **Bottleneck analysis + findings on the existing library-mode
+   `ProfileReport`** (#13, additive, small) — delivers selection #1 in library
+   mode immediately, no protocol change.
+1. **`StepSpec`/`StepFn`/`StepResult` + optional `pipeline` on `ModelSpec`;**
+   probe binary runs the declared pipeline (default = train+eval) with
+   per-step measurement; report per-stage breakdown + bottleneck finding in
+   probe mode.
+2. **`profile_step()` standalone primitive** (eval-only style) — selection #2.
+3. **`stage_bottleneck` scenario; `step=` on `scaling_with_n` /
+   `parallelization_effect`.**
+4. **Migrate inference (#8) to be "just a step,"** unifying the two plans.
+
+## Out of scope (for now)
+
+- Full DAG / branching pipelines (linear sequence first; most pipelines are).
+- Caching step outputs across probes (valuable later — embed once, sweep
+  clustering thresholds cheaply; pairs with eval-only's spirit).
+- Distributed / multi-node steps.
+
+## Recommended path if you don't want to think harder
+
+Commit to **Decision 6 = A (layer)** and build:
+
+1. **Phase 0** first — bottleneck findings on the library-mode `ProfileReport`.
+   It's small, additive, needs no protocol change, and immediately answers
+   "which stage dominates?" on any real run you instrument with `p.stage()`.
+2. Then **phase 1** (declared `pipeline` + per-step probe measurement), which
+   is the real generalization and unblocks everything else.
+3. Then **phase 2** (`profile_step`) for standalone step probing.
+
+Phases 0–2 give a pipeline-aware mlprobe that profiles whole runs *and*
+individual steps, with `train→eval` still working untouched as the default.

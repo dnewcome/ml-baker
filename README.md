@@ -346,9 +346,19 @@ print(p.report().format())
 #   peak_rss:   18.4GB
 # STAGES:
 #   load                        3.1m  ( 7.3%)  rss=6.20GB
-#   cluster                    38.9m  (92.0%)  rss=18.40GB
+#   cluster                    38.9m  (92.0%)  rss=18.40GB  ← bottleneck
 #   (unstaged)                  0.3m  ( 0.7%)
+#
+# STAGE FINDINGS:
+#   [stage_bottleneck] Stage 'cluster' dominates: 92% of wall-clock
+#   (38.9m of 42.3m) (12.5x the next stage). Optimization effort is best
+#   aimed here.
 ```
+
+`p.report().bottleneck()` returns the dominant stage; the report surfaces it as
+a neutral finding (which stage owns the wall-clock, and any large unstaged
+remainder) — it states *where the time is*, not what to change. Per-stage GPU
+util / CPU-vs-GPU-bound classification is the next increment.
 
 MLflow logging is optional (`pip install 'mlprobe[mlflow]'`); without it, a
 passed `mlflow_run` is ignored with a warning and the report is still built.

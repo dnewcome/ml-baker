@@ -42,7 +42,7 @@ from typing import Any, Iterator
 
 import psutil
 
-from mlprobe.audit import AuditReport, audit
+from mlprobe.audit import AuditFinding, AuditReport, audit
 from mlprobe.measure import Measurement, _process_tree_rss_mb, measure
 from mlprobe.spec import ModelSpec
 
@@ -64,6 +64,22 @@ class StageTiming:
     rss_mb: float | None = None
 
 
+@dataclass(frozen=True)
+class StageBottleneck:
+    """The stage that dominates wall-clock. ``share`` is its fraction of the
+    run's total wall-clock."""
+
+    name: str
+    wall_clock_s: float
+    share: float
+
+
+# A stage taking at least this share of total wall-clock is called out as the
+# bottleneck; unstaged time above this share is flagged as a coverage blind spot.
+_BOTTLENECK_SHARE = 0.50
+_UNSTAGED_SHARE = 0.20
+
+
 @dataclass
 class ProfileReport:
     """Single-run report. Same spirit as the probe-mode report, minus the
@@ -77,6 +93,16 @@ class ProfileReport:
     gpu_util_avg: float | None = None
     stages: list[StageTiming] = field(default_factory=list)
     audit: AuditReport | None = None
+    stage_findings: list[AuditFinding] = field(default_factory=list)
+
+    def bottleneck(self) -> StageBottleneck | None:
+        """The stage with the largest share of wall-clock, or ``None`` when no
+        stages were recorded."""
+        if not self.stages:
+            return None
+        total = self.wall_clock_s or sum(s.wall_clock_s for s in self.stages) or 1.0
+        top = max(self.stages, key=lambda s: s.wall_clock_s)
+        return StageBottleneck(top.name, top.wall_clock_s, top.wall_clock_s / total)
 
     def format(self) -> str:
         title = self.spec_name or "run"
@@ -88,6 +114,7 @@ class ProfileReport:
             out.append(f"  gpu_util:   {self.gpu_util_avg:.0f}%")
 
         if self.stages:
+            bottleneck = self.bottleneck()
             out.append("\nSTAGES:")
             total = self.wall_clock_s or 1.0
             for s in self.stages:
@@ -95,6 +122,8 @@ class ProfileReport:
                 line = f"  {s.name:24s} {_fmt_time(s.wall_clock_s):>8s}  ({pct:4.1f}%)"
                 if s.rss_mb is not None:
                     line += f"  rss={_fmt_mb(s.rss_mb)}"
+                if bottleneck and s.name == bottleneck.name and bottleneck.share >= _BOTTLENECK_SHARE:
+                    line += "  ← bottleneck"
                 out.append(line)
             accounted = sum(s.wall_clock_s for s in self.stages)
             if self.wall_clock_s and accounted < self.wall_clock_s:
@@ -102,9 +131,54 @@ class ProfileReport:
                 out.append(f"  {'(unstaged)':24s} {_fmt_time(unacc):>8s}  "
                            f"({100.0 * unacc / total:4.1f}%)")
 
+        if self.stage_findings:
+            out += ["", "STAGE FINDINGS:"]
+            out += [f"  [{f.code}] {f.message}" for f in self.stage_findings]
+
         if self.audit is not None and self.audit.findings:
             out += ["", "AUDIT:", self.audit.format()]
         return "\n".join(out)
+
+
+def analyze_stages(stages: list[StageTiming], wall_clock_s: float) -> list[AuditFinding]:
+    """Neutral, factual findings about where a run's wall-clock went.
+
+    Phase 0 of stage profiling (#13): surfaces the dominant stage and any large
+    unstaged remainder, from the wall-clock data ``p.stage()`` already captures.
+    It states *where the time is*, never *what to do about it* (CPU/GPU-bound
+    classification needs per-stage resource sampling — a later phase)."""
+    findings: list[AuditFinding] = []
+    if not stages or wall_clock_s <= 0:
+        return findings
+
+    staged = sum(s.wall_clock_s for s in stages)
+    top = max(stages, key=lambda s: s.wall_clock_s)
+    share = top.wall_clock_s / wall_clock_s
+
+    if share >= _BOTTLENECK_SHARE:
+        others = [s for s in stages if s is not top]
+        runner_up = max((s.wall_clock_s for s in others), default=0.0)
+        factor = f" ({top.wall_clock_s / runner_up:.1f}x the next stage)" if runner_up > 0 else ""
+        findings.append(AuditFinding(
+            severity="info", code="stage_bottleneck",
+            message=(
+                f"Stage {top.name!r} dominates: {share:.0%} of wall-clock "
+                f"({_fmt_time(top.wall_clock_s)} of {_fmt_time(wall_clock_s)}){factor}. "
+                f"Optimization effort is best aimed here."
+            ),
+        ))
+
+    unstaged = wall_clock_s - staged
+    if unstaged / wall_clock_s >= _UNSTAGED_SHARE:
+        findings.append(AuditFinding(
+            severity="info", code="unstaged_time",
+            message=(
+                f"{unstaged / wall_clock_s:.0%} of wall-clock "
+                f"({_fmt_time(unstaged)}) is outside any stage — wrap it in "
+                f"p.stage(...) to attribute it."
+            ),
+        ))
+    return findings
 
 
 class Profiler:
@@ -138,14 +212,16 @@ class Profiler:
 
     # -- internal --
     def _finalize(self, m: Measurement) -> ProfileReport:
+        stages = list(self._stages)
         self._report = ProfileReport(
             spec_name=self.spec_name,
             wall_clock_s=m.wall_clock_s,
             peak_rss_mb=m.peak_rss_mb,
             peak_vram_mb=m.peak_vram_mb,
             gpu_util_avg=m.gpu_util_avg,
-            stages=list(self._stages),
+            stages=stages,
             audit=self.audit,
+            stage_findings=analyze_stages(stages, m.wall_clock_s),
         )
         return self._report
 

@@ -57,6 +57,62 @@ def test_profile_captures_overall_and_stages():
     assert "load" in text and "train" in text
 
 
+# ---- stage bottleneck analysis (phase 0 of #13) ---------------------------
+
+def test_bottleneck_identifies_dominant_stage():
+    from mlprobe import ProfileReport, StageTiming
+
+    report = ProfileReport(
+        spec_name="r", wall_clock_s=100.0, peak_rss_mb=1.0,
+        stages=[StageTiming("load", 8.0), StageTiming("cluster", 92.0)],
+    )
+    b = report.bottleneck()
+    assert b is not None
+    assert b.name == "cluster"
+    assert b.share == 0.92
+    assert "← bottleneck" in report.format()
+
+
+def test_bottleneck_none_without_stages():
+    from mlprobe import ProfileReport
+
+    assert ProfileReport(spec_name="r", wall_clock_s=10.0, peak_rss_mb=1.0).bottleneck() is None
+
+
+def test_analyze_stages_flags_dominant_and_unstaged():
+    from mlprobe.profile import analyze_stages
+    from mlprobe import StageTiming
+
+    # cluster = 70% of wall-clock → bottleneck; 20% is unstaged → coverage flag.
+    findings = analyze_stages(
+        [StageTiming("load", 10.0), StageTiming("cluster", 70.0)], wall_clock_s=100.0
+    )
+    codes = {f.code for f in findings}
+    assert "stage_bottleneck" in codes
+    assert "unstaged_time" in codes
+    bottleneck_msg = next(f.message for f in findings if f.code == "stage_bottleneck")
+    assert "cluster" in bottleneck_msg and "70%" in bottleneck_msg
+
+
+def test_analyze_stages_balanced_no_bottleneck():
+    from mlprobe.profile import analyze_stages
+    from mlprobe import StageTiming
+
+    # Three even stages fully accounting for the run → no dominant, no unstaged.
+    findings = analyze_stages(
+        [StageTiming("a", 33.0), StageTiming("b", 33.0), StageTiming("c", 34.0)],
+        wall_clock_s=100.0,
+    )
+    assert findings == []
+
+
+def test_analyze_stages_empty():
+    from mlprobe.profile import analyze_stages
+
+    assert analyze_stages([], wall_clock_s=10.0) == []
+    assert analyze_stages([], wall_clock_s=0.0) == []
+
+
 def test_profile_report_unavailable_before_exit():
     with mlprobe.profile(name="job") as p:
         with pytest.raises(RuntimeError):
