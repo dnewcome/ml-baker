@@ -52,6 +52,14 @@ from mlprobe.profile import (
     profile,
 )
 from mlprobe.probe import ProbeInput, ProbeResult, run_probe
+from mlprobe.launchers import (
+    DockerLauncher,
+    InProcessLauncher,
+    ProbeLauncher,
+    SagemakerLauncher,
+    SubprocessLauncher,
+    get_launcher,
+)
 from mlprobe.runner import RunPlan, RunResults, evaluate_existing, plan_run, run
 from mlprobe.scaling import (
     ScalingFit,
@@ -86,18 +94,23 @@ __all__ = [
     "AuditFinding",
     "AuditReport",
     "DatasetProfile",
+    "DockerLauncher",
     "GroupSummary",
+    "InProcessLauncher",
     "IncompatibleSpecError",
     "Measurement",
     "ProbeInput",
+    "ProbeLauncher",
     "ProbeResult",
     "ProfileReport",
     "Profiler",
     "Report",
     "RunPlan",
     "RunResults",
+    "SagemakerLauncher",
     "ScalingFit",
     "StageTiming",
+    "SubprocessLauncher",
     "audit",
     "block_size_profile",
     "block_sizes_from_labels",
@@ -108,6 +121,7 @@ __all__ = [
     "evaluate_existing",
     "expand_sweeps",
     "format_data_audit",
+    "get_launcher",
     "outlier_profile",
     "similarity_profile",
     "stratified_plan",

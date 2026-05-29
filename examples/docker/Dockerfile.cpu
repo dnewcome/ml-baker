@@ -1,0 +1,34 @@
+# Reference CPU image for the mlprobe Docker launcher (sklearn / spaCy stacks).
+#
+# The image must have mlprobe AND your train/evaluate/load code importable — the
+# probe binary imports your callables by dotted path. Here we install mlprobe
+# plus the demo extra (scikit-learn etc.); swap in your own package + deps.
+#
+# Build (from the repo root, so the build context includes mlprobe/ + examples/):
+#   docker build -f examples/docker/Dockerfile.cpu -t mlprobe-cpu:latest .
+#
+# Use:
+#   from mlprobe import DockerLauncher
+#   launcher = DockerLauncher(image="mlprobe-cpu:latest")
+#   mlprobe.run(spec, run_dir, launcher=launcher)
+#
+# The launcher bind-mounts the run directory at the same absolute path, so the
+# probe's input/result JSON paths resolve inside the container automatically.
+
+FROM python:3.12-slim
+
+WORKDIR /workspace
+
+# Install mlprobe (+ your training deps). Copy only what's needed first so the
+# dependency layer caches across code changes.
+COPY pyproject.toml /workspace/
+COPY mlprobe /workspace/mlprobe
+COPY examples /workspace/examples
+RUN pip install --no-cache-dir -e ".[demo]"
+
+# So dotted paths like `examples.fake_trainable:train` (and your own package)
+# resolve. Point this at wherever your training code lives.
+ENV PYTHONPATH=/workspace
+
+# No ENTRYPOINT: the launcher supplies the full command
+# (python -m mlprobe.probe <input.json>).

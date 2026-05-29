@@ -11,14 +11,12 @@ shape is what would be enqueued for a remote launcher.
 
 from __future__ import annotations
 
-import json
-import subprocess
-import sys
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Iterator
 
-from mlprobe.probe import ProbeInput, ProbeResult, _import_dotted, run_probe
+from mlprobe.launchers import ProbeLauncher, get_launcher
+from mlprobe.probe import ProbeInput, ProbeResult, _import_dotted
 from mlprobe.runtime import resolve_runtime
 from mlprobe.spec import ModelSpec
 from mlprobe.sweep import expand_sweeps
@@ -155,11 +153,12 @@ def run(
     spec: ModelSpec,
     run_dir: Path,
     *,
-    launcher: str = "subprocess",
+    launcher: "str | ProbeLauncher" = "subprocess",
     progress: bool = True,
 ) -> RunResults:
-    """Plan + execute. ``launcher`` is currently ``"subprocess"`` or
-    ``"in_process"``; ``"docker"`` will join the family later."""
+    """Plan + execute. ``launcher`` is a name (``"subprocess"`` /
+    ``"in_process"``) or a configured ``ProbeLauncher`` instance — e.g.
+    ``DockerLauncher(image=...)`` to run each probe in a container."""
     plan = plan_run(spec, run_dir)
     results = execute_probes(
         plan.probes,
@@ -173,20 +172,22 @@ def run(
 def execute_probes(
     probes: list[ProbeInput],
     *,
-    launcher: str = "subprocess",
+    launcher: "str | ProbeLauncher" = "subprocess",
     timeout: int = 1800,
     progress: bool = True,
 ) -> list[ProbeResult]:
     """Execute an explicit list of probes and collect their results.
 
-    Decoupled from ``plan_run`` so callers that build their own probe lists
-    (notably the scenarios package, which varies axes other than the sweep
-    matrix) reuse the exact same launcher contract."""
+    ``launcher`` is resolved once (name -> launcher instance) and reused for
+    every probe. Decoupled from ``plan_run`` so callers that build their own
+    probe lists (notably the scenarios package) reuse the same launcher
+    contract."""
+    impl = get_launcher(launcher)
     results: list[ProbeResult] = []
     for i, probe in enumerate(probes):
         if progress:
             _emit_progress(i, len(probes), probe)
-        results.append(_launch(probe, launcher, timeout=timeout))
+        results.append(impl.launch(probe, timeout=timeout))
     return results
 
 
@@ -234,61 +235,6 @@ def _as_artifact(artifact_path: str | Path) -> str | Path:
     loader (boto3, gcsfs, ...) can resolve them itself."""
     s = str(artifact_path)
     return s if "://" in s else Path(s)
-
-
-def _launch(probe: ProbeInput, launcher: str, *, timeout: int) -> ProbeResult:
-    if launcher == "in_process":
-        return run_probe(probe)
-    if launcher == "subprocess":
-        return _launch_subprocess(probe, timeout=timeout)
-    raise ValueError(f"unknown launcher {launcher!r}")
-
-
-def _launch_subprocess(probe: ProbeInput, *, timeout: int) -> ProbeResult:
-    """Run the probe in a fresh Python subprocess. Identical contract to
-    what a Docker launcher will use — mount input file, invoke the probe
-    binary, read the result file."""
-    input_path = Path(probe.result_path).with_suffix(".input.json")
-    input_path.parent.mkdir(parents=True, exist_ok=True)
-    input_path.write_text(json.dumps(asdict(probe), indent=2))
-
-    cmd = [sys.executable, "-m", "mlprobe.probe", str(input_path)]
-    try:
-        proc = subprocess.run(
-            cmd,
-            capture_output=True,
-            timeout=timeout,
-            text=True,
-        )
-    except subprocess.TimeoutExpired:
-        return ProbeResult(
-            config=probe.config,
-            instance_type=probe.instance_type,
-            subset_fraction=probe.subset_fraction,
-            repetition=probe.repetition,
-            error="TimeoutExpired",
-            traceback=f"probe exceeded {timeout}s",
-        )
-
-    result_path = Path(probe.result_path)
-    if result_path.exists():
-        return _load_result(result_path)
-
-    # Probe crashed before writing result — synthesize an error record so the
-    # runner doesn't lose track of this slot.
-    return ProbeResult(
-        config=probe.config,
-        instance_type=probe.instance_type,
-        subset_fraction=probe.subset_fraction,
-        repetition=probe.repetition,
-        error=f"probe exited {proc.returncode} without writing result",
-        traceback=(proc.stderr or "")[-4000:],
-    )
-
-
-def _load_result(path: Path) -> ProbeResult:
-    data = json.loads(path.read_text())
-    return ProbeResult(**data)
 
 
 def _emit_progress(i: int, total: int, probe: ProbeInput) -> None:

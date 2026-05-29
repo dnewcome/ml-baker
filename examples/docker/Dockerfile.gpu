@@ -1,0 +1,38 @@
+# Reference GPU image for the mlprobe Docker launcher (PyTorch + CUDA stacks,
+# e.g. HuggingFace fine-tuning / the lora_finetune example).
+#
+# Build (from the repo root):
+#   docker build -f examples/docker/Dockerfile.gpu -t mlprobe-gpu:latest .
+#
+# Use (GPU passthrough is automatic for GPU targets; "auto" adds --gpus all):
+#   from mlprobe import DockerLauncher
+#   launcher = DockerLauncher(image="mlprobe-gpu:latest", gpus="auto")
+#
+# Requires the NVIDIA Container Toolkit on the host for --gpus to work.
+#
+# GPU caveat (see issue #1): this exercises the *host's* GPUs, not the target
+# instance's — good for build-time correctness checks, not true target-hardware
+# cost/perf measurement (that's the SageMaker launcher, #24).
+
+# CUDA runtime base with a matching PyTorch wheel index.
+FROM nvidia/cuda:12.4.1-cudnn-runtime-ubuntu22.04
+
+ENV DEBIAN_FRONTEND=noninteractive
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        python3 python3-pip git && \
+    rm -rf /var/lib/apt/lists/*
+
+WORKDIR /workspace
+
+COPY pyproject.toml /workspace/
+COPY mlprobe /workspace/mlprobe
+COPY examples /workspace/examples
+
+# Install a CUDA-matched torch, then mlprobe + the heavy demo deps (transformers,
+# peft, ...). Pin the torch CUDA index to your base image's CUDA version.
+RUN pip3 install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cu124 && \
+    pip3 install --no-cache-dir -e ".[demo]" peft
+
+ENV PYTHONPATH=/workspace
+
+# No ENTRYPOINT: the launcher supplies `python -m mlprobe.probe <input.json>`.

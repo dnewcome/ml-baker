@@ -49,8 +49,9 @@ end-to-end (`examples/probe_demo.py`), and on top of it:
   explosion, class imbalance, similarity separation, outliers) and a
   spec-integrated pre-flight `data_audit()`.
 
-Probes run locally as subprocesses; Docker / SageMaker launchers are still on
-the roadmap. See [open issues](#roadmap) for what's next.
+Probes run locally as subprocesses by default, or in **Docker** containers via
+the `DockerLauncher`; a SageMaker launcher is scaffolded (see
+[Launchers](#launchers)). See [open issues](#roadmap) for what's next.
 
 ## Installation
 
@@ -436,6 +437,31 @@ training-VRAM figure (set `FrameworkHints.param_count_b` + `finetune_method`;
 `estimate_training_vram_gb` is also callable directly). Worked end-to-end in
 [`examples/lora_finetune/`](examples/lora_finetune).
 
+## Launchers
+
+A *launcher* decides where each probe runs; they're interchangeable because the
+probe binary's contract is just *read an input JSON, write a result JSON*. Pass
+a name for the zero-config launchers, or a configured instance:
+
+```python
+import mlprobe
+from mlprobe import DockerLauncher
+
+mlprobe.run(spec, run_dir, launcher="subprocess")                  # default: fresh process
+mlprobe.run(spec, run_dir, launcher="in_process")                  # debug: same process
+mlprobe.run(spec, run_dir, launcher=DockerLauncher(image="my:tag"))# each probe in a container
+```
+
+| Launcher | Use |
+|---|---|
+| `"subprocess"` | default — fresh `python -m mlprobe.probe` process per probe |
+| `"in_process"` | debug — same interpreter, no isolation |
+| `DockerLauncher(image=…)` | run each probe in a container (same command, bind-mounted run dir, optional `--gpus`). See [`examples/docker/`](examples/docker) |
+| `SagemakerLauncher(…)` | **scaffold** ([#24](https://github.com/dnewcome/mlprobe/issues/24)) — SageMaker training jobs; protocol-conformant, AWS wiring not yet implemented |
+
+Scenarios accept `launcher=` too. The `ProbeLauncher` protocol (`launch(probe,
+*, timeout) -> ProbeResult`) is the extension point for new backends.
+
 ## How it composes
 
 ```
@@ -576,6 +602,8 @@ register(InstanceSpec(
   pre-flight audit with an estimated training-VRAM figure, scenarios on a
   synthetic trainable (no ML libraries), and a real HF + PEFT reference
   template. See its [README](examples/lora_finetune/README.md).
+- [`examples/docker/`](examples/docker) — **Docker launcher**: reference
+  CPU/GPU Dockerfiles + how to run each probe in a container.
 - [`examples/fake_trainable.py`](examples/fake_trainable.py) — a
   reference implementation of the user-supplied callables (synthetic).
 - [`examples/agnews/`](examples/agnews) — **realistic demo on the AG News
@@ -595,9 +623,10 @@ register(InstanceSpec(
 ([#21](https://github.com/dnewcome/mlprobe/issues/21)), library mode + eval-only
 ([#20](https://github.com/dnewcome/mlprobe/issues/20),
 [#18](https://github.com/dnewcome/mlprobe/issues/18)), the `baseline_compare`
-exploration scenario ([#19](https://github.com/dnewcome/mlprobe/issues/19)), and
+exploration scenario ([#19](https://github.com/dnewcome/mlprobe/issues/19)),
 dataset profiling (block-size / class-balance / similarity / outlier + a
-pre-flight `data_audit`).
+pre-flight `data_audit`), and the **Docker launcher**
+([#1](https://github.com/dnewcome/mlprobe/issues/1)).
 
 **Open** (tracked as issues):
 
@@ -624,9 +653,10 @@ pre-flight `data_audit`).
 - **Report math** — saturating power-law quality fit
   ([#3](https://github.com/dnewcome/mlprobe/issues/3)), repetition averaging
   ([#4](https://github.com/dnewcome/mlprobe/issues/4))
-- **Infra / spec** — Docker launcher
-  ([#1](https://github.com/dnewcome/mlprobe/issues/1); lower priority now that
-  library mode exists), YAML spec loading
+- **Cloud launchers** — finish the SageMaker launcher
+  ([#24](https://github.com/dnewcome/mlprobe/issues/24); scaffolded, needs AWS
+  wiring)
+- **Infra / spec** — YAML spec loading
   ([#7](https://github.com/dnewcome/mlprobe/issues/7)), sagebaker relationship
   doc ([#16](https://github.com/dnewcome/mlprobe/issues/16))
 
