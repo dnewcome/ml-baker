@@ -398,3 +398,234 @@ the discussion's eventual shape.
   that runs `scaling_with_n` + `stage_bottleneck` + `gpu_vs_cpu` and
   produces a combined recommendation). Probably yes eventually, but
   not in the first cut.
+
+---
+
+# Inference profiling (added 2026-05-29) — issues #8 + #15
+
+Everything above is about *training*. mlprobe has nothing on the
+**inference / deployment** side yet, and this section plans it. It was
+written after the launcher work (#1/#24), so it assumes the pieces shipped
+this cycle exist: scenarios, library mode (`profile()`), eval-only
+(`evaluate_existing`), the `ProbeLauncher` protocol + Docker launcher, and
+dataset profiling (incl. `token_length_profile`). Issues
+[#8](https://github.com/dnewcome/mlprobe/issues/8) (inference profiling) and
+[#15](https://github.com/dnewcome/mlprobe/issues/15) (model size) predate all
+of that and reference the old `ml_baker/` names — this section supersedes
+their design notes.
+
+If you don't want to read the whole thing: jump to
+**"Recommended path if you don't want to think harder"** at the end. It's a
+concrete default you can greenlight as-is.
+
+## What inference profiling is
+
+Profile a *trained* model for **deployment**, which is a different question
+from training:
+
+- Inference VRAM ≪ training VRAM (no optimizer state, no gradients, often
+  quantized).
+- Latency is batch-size-sensitive; cold-load vs warm-request matters for
+  serverless/autoscaling.
+- Cost is per-request (cost-per-1k-requests), not per-training-run.
+- The serving hardware is usually *different* from training (train on a
+  `p4d`, serve on a `g4dn` or CPU).
+
+It is a clean fit for mlprobe's scope boundary (see
+[[mlprof-scope-boundary]] in memory): pure **measurement** (load time,
+latency, VRAM, throughput, artifact size) plus **surfacing** (cost-per-1k, a
+deployment Pareto, audit findings against *your* declared SLA). It never picks
+the instance for you — it measures and you decide.
+
+## How it fits the architecture we now have
+
+The original issue framed inference as an after-training runner pass that
+appends an "INFERENCE" section to the training report. Given what shipped this
+cycle, three changes make it cleaner and more powerful:
+
+1. **Mirror eval-only.** The core primitive is a standalone
+   `profile_inference(spec, artifact_path, target, batch_sizes=...)` that
+   profiles an *existing* artifact, decoupled from any training run — exactly
+   analogous to `evaluate_existing`. "Run after training" becomes a thin
+   convenience on top, not the core. This lets you profile a model you already
+   have, on a serving box, without re-running anything.
+
+2. **Reuse launchers via a mode flag.** Add a discriminator to the probe input
+   JSON (`mode: "train_eval" | "inference"`) and dispatch inside
+   `python -m mlprobe.probe`. Then *every* launcher (subprocess, Docker, later
+   SageMaker) runs inference probes with **zero launcher changes** — and you
+   can profile on the real *serving* container, which is often different from
+   the training image. (This is a payoff of the launcher refactor.)
+
+3. **Scenarios are the surface.** Consistent with Decision 4, the user-facing
+   surface is scenario(s) — `latency_vs_batch_size`,
+   `cheapest_inference_target`, `deployment_readiness` — with the inference
+   probe + report underneath. Inference metrics also flow into
+   `baseline_compare`'s metric vector for free (it already compares latency).
+
+## The distinctive piece: training → inference linkage
+
+The most mlprobe-ish part, and the thing nothing else gives you: **a lot of
+inference performance is decided at training time, and most of those decisions
+are already visible in the `ModelSpec`.** So mlprobe can connect the two sides.
+
+Training decisions that determine inference performance:
+
+- **Architecture / size** (dominant): encoder/base-model, depth, width,
+  hidden size, **vocab/embedding size** → param count, artifact size, VRAM,
+  FLOPs-per-request, latency. These are *structural hyperparameters mlprobe
+  already sweeps*, so the inference cost of "distilbert vs bert" is a
+  training-choice axis.
+- **Precision**: training in bf16/fp16 sets the saved weights' dtype; serving
+  on a GPU without bf16 (T4/V100) forces an fp32 fallback → ~2× VRAM +
+  different latency. mlprobe can predict this *from the spec* (it knows
+  training precision + the inference target's GPU). QAT vs post-training quant
+  also reshapes the whole latency/quality curve.
+- **What `train()` saves**: full checkpoint / optimizer state vs inference-only
+  weights → bloated artifact + slow cold load (serverless killer). Save
+  *format* (safetensors/ONNX/TorchScript vs pickle) → load time, sometimes
+  latency. **LoRA**: serving the adapter unmerged → base-load + merge at cold
+  start → slower load + small per-request overhead.
+- **Sequence length** (LLM/NLP): `max_seq_len` / `max_position_embeddings`
+  caps inference context and sets KV-cache size + quadratic attention cost.
+  Connects directly to `token_length_profile` — if p99 tokens = 512 but you
+  trained/serve at 2048, you pay for headroom you never use.
+- **Correctness gotchas** (quality, not speed): BatchNorm running stats depend
+  on training batch size; inference precision differing from eval precision
+  can drift quality → "re-validate."
+
+This motivates two features beyond raw measurement, both surface-not-prescribe:
+
+- **Provenance tagging.** Each inference profile is tagged with the training
+  config that produced the artifact, so the deployment Pareto's "architecture"
+  axis *is* the training choice (distilbert → 250MB / 12ms / $0.40 vs bert →
+  440MB / 21ms / $0.70). The inference cost of a training decision becomes
+  legible.
+- **A train→infer mismatch audit** (cheap, pre-probe, like the existing
+  capability `audit`), surfacing findings such as:
+  - trained bf16 → serving on T4 (no bf16) → expect fp32 fallback, ~2× VRAM
+  - `max_seq_len=2048` but `token_length_profile` p99=512 → unused
+    KV-cache/attention cost
+  - artifact includes optimizer state → strip for deployment (size/cold-load)
+  - LoRA adapter unmerged → slower cold load
+
+The mismatch audit is the highest-value, most-distinctive piece — it fuses the
+dataset profiler, the training spec, and the inference target into findings
+nothing else produces. **Implication:** the standalone primitive should still
+*accept/propagate training provenance* (config + precision + the spec) so the
+linkage works whether you profile right after training or against an artifact
+you already have.
+
+## Protocol + spec additions
+
+```python
+class InferFn(Protocol):
+    def __call__(self, artifact_path, inputs, runtime,
+                 batch_size, n_warmup) -> InferResult: ...
+
+@dataclass
+class InferResult:
+    batch_latencies_ms: list[float]   # one per measured batch, post-warmup
+    load_time_s: float                # cold load: disk -> ready
+    error: str | None = None
+```
+
+(Tightened vs the issue: per-**batch** times, not per-request — throughput =
+`batch_size / batch_time`, per-request = `batch_time / batch_size`. Removes the
+ambiguity.)
+
+`ModelSpec` gains: optional `inference_callable`, `inference_targets` (a
+*separate* list from training `targets` — agreed), a `max_latency_ms` declared
+constraint (for the gate), and an `InferenceProbeConfig(batch_sizes, n_warmup,
+n_measure, timeout_seconds)`.
+
+## Metrics → report → Pareto
+
+- Latency-vs-batch-size fit (reuse `mlprobe/scaling.py`).
+- Derived **throughput** (`batch_size / batch_latency_s`) and
+  **cost-per-1k-requests** (`$/hr × 1000 / throughput`).
+- `InferenceReport` (its own shape, like `ProfileReport`): load_time,
+  p50/p95/p99 latency at the configured batch size, throughput, inference
+  VRAM, cost-per-1k, artifact size.
+- Audit findings: `inference_vram_overshoot`, `inference_latency_overshoot`
+  (vs declared `max_latency_ms`), `inference_cold_load_slow`, plus the
+  train→infer mismatch findings above.
+- A **deployment Pareto** over `(cost_per_1k, quality)` across
+  (architecture × inference_target × batch_size) — same data, different axes
+  from the training Pareto.
+
+## Model size (#15) — the cheap prerequisite
+
+Independent, ~an hour, feeds everything above. After a successful training
+probe, `du` the artifact dir → `artifact_size_mb` (and
+`largest_checkpoint_size_mb`) on `ProbeResult`; surface on `GroupSummary` +
+report line; optional user `params_callable` for param count (keeps mlprobe
+framework-agnostic); `large_artifact` audit finding (threshold off by default).
+Answers "how many replicas fit per GPU?" alongside inference VRAM.
+
+## LLM / generation latency
+
+Issue #8 lists streaming as out of scope, but since the LoRA/LLM work landed,
+**generation latency is probably the metric that actually matters there**:
+time-to-first-token (TTFT), inter-token latency, tokens/sec — not batch
+throughput. Batch latency is right for classifiers/embedders/rerankers; TTFT is
+right for generation. Decision below on whether to include it now.
+
+## Phasing (each independently shippable)
+
+0. **#15 model size** — tiny standalone warmup.
+1. **Inference protocol + probe primitive + `profile_inference()`** — eval-only
+   style; synthetic infer callable + `in_process` tests (no ML deps);
+   `InferenceReport`; the probe-mode dispatch in `mlprobe.probe`.
+2. **Fits + cost-per-1k + audit findings (incl. train→infer mismatch) +
+   deployment Pareto.**
+3. **Scenarios** — `latency_vs_batch_size`, `cheapest_inference_target`,
+   `deployment_readiness` (combines #8 + #15 + inference VRAM; the catalog
+   entry from Decision 4).
+4. *(optional)* runner auto-runs inference probes after a training sweep on the
+   highest-quality artifact per architecture.
+
+## Open decisions (with recommendations)
+
+- **Entry point** — standalone `profile_inference(artifact)` primitive
+  (RECOMMENDED, mirrors eval-only) vs. after-training runner pass only. Best:
+  primitive first, runner integration as phase 4. *The primitive must still
+  accept training provenance so the mismatch audit works.*
+- **Surface** — scenarios-first (RECOMMENDED, matches Decision 4) vs.
+  report-section-first.
+- **LLM generation latency (TTFT/tokens-sec)** — defer to a follow-up
+  (RECOMMENDED for a first cut: batch latency/throughput/VRAM/load first) vs.
+  include now. Lean "include soon after" given the LLM direction.
+- **Quality during inference** — skip (RECOMMENDED; quality came from
+  training-time `evaluate`); the inference probe is operational metrics only,
+  with a "re-validate if inference precision ≠ eval precision" finding.
+
+## Out of scope (separate issues / later)
+
+- Quantization (INT8/INT4) + the quality-vs-latency tradeoff.
+- Multi-replica throughput projection ("8 replicas behind a load balancer").
+- SLA enforcement / autoscaling cost modeling.
+- On-the-fly size estimation from layer specs (just measure the artifact).
+
+## Recommended path if you don't want to think harder
+
+Commit to **primitive-first + scenarios-first + defer-TTFT**, and build in this
+order — each step is small and lands value on its own:
+
+1. **#15 model size** (artifact `du` in the probe + report line + finding).
+   Trivial, immediately useful, no new concepts.
+2. **`profile_inference(spec, artifact_path, target, batch_sizes=...)`** — the
+   eval-only-style primitive, with a synthetic infer callable and `in_process`
+   tests. Add `mode: "inference"` dispatch to `mlprobe.probe` so all launchers
+   work. Returns an `InferenceReport` (load, p50/p95/p99, throughput, VRAM,
+   cost-per-1k, size).
+3. **Train→infer mismatch audit + provenance tagging** — the distinctive
+   piece; cheap, pure surfacing, fuses dataset profiler + spec + target.
+4. **Scenarios** — `latency_vs_batch_size` and `deployment_readiness` as the
+   front end.
+5. Later: TTFT/generation latency; runner auto-profiling post-training.
+
+That sequence gives a usable "profile any artifact for deployment" tool after
+step 2, the unique linkage value after step 3, and the polished surface after
+step 4 — without committing to the big stuff (generation latency, multi-replica)
+until real use asks for it.
